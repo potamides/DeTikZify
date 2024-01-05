@@ -3,11 +3,11 @@ from argparse import ArgumentParser
 from sys import flags
 
 from PIL import UnidentifiedImageError
-from peft.utils import infer_device # type: ignore
-from transformers import set_seed
 
 from detikzify.infer import DetikzifyPipeline
 from detikzify.model import load
+from detikzify.util import infer_device
+from transformers import set_seed
 
 try:
     import readline # patches input()

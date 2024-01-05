@@ -12,7 +12,6 @@ dependencies = [
   "diffusers~=0.24",
   "tokenizers~=0.15",
   "datasets~=2.15",
-  "peft~=0.7",
   "timm~=0.9",
   "PyMuPDF~=1.23",
   "pdf2image~=1.16",

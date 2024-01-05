@@ -7,17 +7,18 @@ from random import choice, choices, sample
 from typing import Dict
 
 from PIL import Image
+
 from diffusers import (
     EulerAncestralDiscreteScheduler, # type: ignore
     StableDiffusionInstructPix2PixPipeline, # type: ignore
 )
-from peft.utils import infer_device # type: ignore
 import torch
 from torch.utils.data import Dataset
 from transformers import Trainer, TrainerCallback, TrainingArguments
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import logging
 
+from ..util import infer_device
 from ..util import convert
 from .pretrain import DataCollatorForImageTextTraining, preprocess
 

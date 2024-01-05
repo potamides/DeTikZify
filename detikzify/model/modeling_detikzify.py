@@ -18,7 +18,6 @@ from itertools import count
 from pickle import UnpicklingError
 from typing import List, Optional, Tuple, Union
 
-from peft.utils import infer_device
 from safetensors.torch import load_file
 from timm import create_model as create_vision_model
 from timm.data import create_transform, resolve_data_config
@@ -32,6 +31,8 @@ from transformers.modeling_outputs import (
     CausalLMOutputWithPast,
 )
 from transformers.utils import logging
+
+from ..util import infer_device
 
 logger = logging.get_logger("transformers")
 
