@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-
 from functools import lru_cache
 from inspect import signature
 from multiprocessing.pool import ThreadPool
@@ -10,7 +8,10 @@ from typing import Dict
 
 from PIL import Image
 import gradio as gr
+from torch import float16, bfloat16
+from torch.cuda import is_bf16_supported, is_available as is_cuda_available
 from transformers import TextIteratorStreamer
+from transformers.utils import is_flash_attn_2_available
 
 from detikzify.infer import DetikzifyPipeline, TikzDocument
 from detikzify.model import load
@@ -42,11 +43,18 @@ CSS = """
     #output-code .cm-scroller {
         flex-grow: 1;
     }
+    #output-code .cm-gutters {
+        position: relative !important;
+    }
     #output-image {
         flex-grow: 1;
         height: 50vh;
         overflow-y: auto !important;
         scrollbar-width: thin !important;
+    }
+    #output-image .image-container {
+       width: 100%;
+       height: 100%;
     }
     #outputs .tabs {
         display: flex;
@@ -86,7 +94,12 @@ def inference(
     top_k: int,
     preprocess: bool,
 ):
-    model, tokenizer = cached_load(model_name, device_map="auto")
+    model, tokenizer = cached_load(
+        base_model=model_name,
+        device_map="auto",
+        torch_dtype=bfloat16 if is_cuda_available() and is_bf16_supported() else float16,
+        attn_implementation="flash_attention_2" if is_flash_attn_2_available() else None,
+    )
     streamer = TextIteratorStreamer(
         tokenizer=tokenizer.text,
         skip_prompt=True,
@@ -216,8 +229,8 @@ def build_ui(
                 label="Base Model",
                 allow_custom_value=True,
                 info=lock_reason if lock else None,
-                choices=list(MODELS.items()),
-                value=MODELS[model],
+                choices=list(({model: model} | MODELS).items()),
+                value=MODELS.get(model, model),
                 interactive=not lock,
             )
             with gr.Accordion(label="Advanced"):
@@ -261,7 +274,7 @@ def build_ui(
         # scroll with output
         tikz_code.change(
             fn=None,
-            js="() => document.getElementById('output-code').querySelector('.cm-content').scrollIntoView(false)"
+            js="() => document.getElementById('output-code').querySelector('.cm-gutters').scrollIntoView(false)"
         )
         for btn in [clear_btn, stop_btn]:
             btn.click(fn=None, cancels=events, queue=False)
