@@ -3,7 +3,7 @@ from io import BytesIO
 from itertools import chain
 from math import ceil, floor
 import os
-from random import choice, choices, sample
+from random import choice, sample
 from typing import Dict
 
 from PIL import Image
@@ -18,8 +18,7 @@ from transformers import Trainer, TrainerCallback, TrainingArguments
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import logging
 
-from ..util import infer_device
-from ..util import convert
+from ..util import convert, infer_device, HalfEpochSaveCallback
 from .pretrain import DataCollatorForImageTextTraining, preprocess
 
 logger = logging.get_logger("transformers")
@@ -28,13 +27,7 @@ WORLD_SIZE = int(os.environ.get("WORLD_SIZE", 1))
 RANK = int(os.environ.get("RANK", 0))
 
 class Sketchifier:
-    prompts = [
-        "turn it into a doodle",
-        "Make it a hand-drawn sketch",
-        "turn it into scribble"
-    ]
-
-    def __init__(self, model="timbrooks/instruct-pix2pix", device=torch.device(infer_device(), RANK)):
+    def __init__(self, model="nllg/sketch-pix2pix", device=torch.device(infer_device(), RANK)):
         self.model, self.device = model, torch.device(device)
 
     @cached_property
@@ -59,10 +52,11 @@ class Sketchifier:
     def sketchify(self, imgs):
         with torch.inference_mode(), torch.autocast(self.device.type, enabled=False): # type: ignore
             return [convert(img, "png") for img in self.pipe(
-                prompt=choices(self.prompts, k=len(imgs)),
+                prompt=["turn it into a doodle"] * len(imgs),
                 image=imgs,
                 num_inference_steps=10,
-                image_guidance_scale=1 # type: ignore
+                image_guidance_scale=1.2,
+                guidance_scale=15,
             ).images]
 
 class ImageSketchDataset(Dataset, TrainerCallback):
@@ -86,7 +80,6 @@ class ImageSketchDataset(Dataset, TrainerCallback):
             image = Image.open(BytesIO(sketch['bytes']))
         else:
             image = item['image']
-
         return dict(
             input_ids=torch.tensor(item["input_ids"]),
             labels=torch.tensor(item["labels"]),
@@ -121,13 +114,14 @@ def train(
     tokenizer,
     dataset,
     overwrite=False,
+    deepspeed=None,
     # training hyperparams
     batch_size: int = 128,
     micro_batch_size: int = 1,
-    num_epochs: int = 5,
-    learning_rate: float = 1e-4,
+    num_epochs: int = 3,
+    learning_rate: float = 4e-5,
     sketchification_ratio: float = 0.5,
-    gradient_checkpointing = False,
+    gradient_checkpointing: bool = False,
     group_by_length: bool = False,
 ):
     gradient_accumulation_steps = batch_size // micro_batch_size
@@ -135,6 +129,8 @@ def train(
         gradient_accumulation_steps = gradient_accumulation_steps // WORLD_SIZE
 
     def prepare_dataset(dataset):
+        patch_token = tokenizer.text.convert_ids_to_tokens(model.config.patch_token_id)
+        max_len = tokenizer.text.model_max_length
         dataset = dataset.map(
             sketchify,
             batched=True,
@@ -152,12 +148,12 @@ def train(
             fn_kwargs=dict(
                 tokenizer=tokenizer.text,
                 num_patches=model.config.num_patches,
-                patch_token=tokenizer.text.convert_ids_to_tokens(model.config.patch_token_id),
+                patch_token=patch_token,
                 truncation=False
             )
         )
         logger.info(f"Dataset size before filtering out too long examples: {len(dataset)}")
-        dataset = dataset.filter(lambda example: len(example['input_ids']) <= tokenizer.text.model_max_length)
+        dataset = dataset.filter(lambda ex: len(ex['input_ids']) <= max_len and patch_token not in ex['text'])
         logger.info(f"Dataset size after filtering out too long examples: {len(dataset)}")
         return ImageSketchDataset(tokenizer=tokenizer, dataset=dataset)
 
@@ -189,14 +185,16 @@ def train(
             bf16=True,
             logging_steps=10,
             lr_scheduler_type="cosine",
-            optim="adamw_torch_fused",
+            optim="adamw_torch" if deepspeed else "adamw_torch_fused",
             save_strategy="epoch",
             save_total_limit=1,
             output_dir=output_dir,
             ddp_find_unused_parameters=False if ddp else None,
             remove_unused_columns=False,
             group_by_length=group_by_length,
+            deepspeed=deepspeed,
         ),
+        callbacks=[HalfEpochSaveCallback()],
         data_collator=DataCollatorForImageTextTraining(
             tokenizer=tokenizer.text,
             pad_to_multiple_of=8
@@ -206,6 +204,11 @@ def train(
     model.config.use_cache = False
     trainer.add_callback(trainer.train_dataset)
     trainer.train(resume_from_checkpoint=last_checkpoint)
+
+    if deepspeed:
+        from deepspeed.utils.zero_to_fp32 import load_state_dict_from_zero_checkpoint
+        last_checkpoint = get_last_checkpoint(output_dir)
+        load_state_dict_from_zero_checkpoint(trainer.model, last_checkpoint)
 
     trainer.save_model(output_dir)
     trainer.save_state()

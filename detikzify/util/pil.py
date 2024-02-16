@@ -1,6 +1,8 @@
 from io import BytesIO
 
-from PIL import Image, ImageOps, ImageChops
+from PIL import Image, ImageChops, ImageOps
+import requests
+from transformers.utils.hub import is_remote_url
 
 def convert(img, filetype):
     img.save(imgbytes:=BytesIO(), format=filetype)
@@ -38,3 +40,8 @@ def expand(raw, size, trim=False, border="white"):
     img = ImageOps.pad(img, 2 * (max(img.size),), color=border, method=Image.Resampling.LANCZOS)
     img = img.resize((size, size), Image.Resampling.LANCZOS)
     return _postprocess(img, filetype)
+
+def load(image: Image.Image | str):
+    if isinstance(image, str):
+        image = Image.open(requests.get(image, stream=True).raw if is_remote_url(image) else image)
+    return image

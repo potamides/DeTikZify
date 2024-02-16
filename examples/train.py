@@ -31,6 +31,9 @@ def parse_args():
         default="models/detikzify",
         help="directory where to write the model files",
     )
+    argument_parser.add_argument("--deepspeed",
+        help="path to a DeepSpeed json config file",
+    )
     argument_parser.add_argument("--gradient_checkpointing",
         action="store_true",
         help="use gradient checkpointing",
@@ -53,6 +56,8 @@ if __name__ == "__main__":
     train(
         model=model,
         tokenizer=tokenizer,
+        dataset=datikz,
         output_dir=join(args.output, basename(model.config.name_or_path)), # type: ignore
-        dataset=datikz
+        gradient_checkpointing=args.gradient_checkpointing,
+        deepspeed=args.deepspeed,
     )

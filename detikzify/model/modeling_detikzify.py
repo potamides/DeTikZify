@@ -18,6 +18,7 @@ from itertools import count
 from pickle import UnpicklingError
 from typing import List, Optional, Tuple, Union
 
+from numpy import clip
 from safetensors.torch import load_file
 from timm import create_model as create_vision_model
 from timm.data import create_transform, resolve_data_config
@@ -31,8 +32,6 @@ from transformers.modeling_outputs import (
     CausalLMOutputWithPast,
 )
 from transformers.utils import logging
-
-from ..util import infer_device
 
 logger = logging.get_logger("transformers")
 
@@ -62,19 +61,23 @@ class DetikzifyModel(LlamaModel):
         # HACK: wrap in list to not make vision model count as a parameter
         self._hidden_vision_tower = [vision_tower]
 
-    def initialize_vision_modules(self, vision_tower, patch_token_id, concat_patches=4, pretrain_mm_mlp_adapter=None):
+    def initialize_vision_modules(
+        self,
+        vision_tower,
+        patch_token_id,
+        concat_patches=2,
+        feature_layer=-1,
+        pretrain_mm_mlp_adapter=None,
+    ):
         if not hasattr(self, 'vision_tower'):
             self.vision_tower = create_vision_model(vision_tower, pretrained=True)
-        self.vision_tower = self.vision_tower.to(self.dtype).eval().requires_grad_(False)
+        self.vision_tower = self.vision_tower.to(self.device, self.dtype).eval().requires_grad_(False)
 
-        if hasattr(self, "hf_device_map"):
-            logger.info("Main model has a device map, trying to infer device for vision tower.")
-            try: # crude attempt to infer device
-                self.vision_tower = self.vision_tower.to(infer_device())
-            except: # if it fails model stays on the cpu
-                pass
-        else:
-            self.vision_tower = self.vision_tower.to(self.device)
+        try: # if we use accelerate, exclude the vision_tower as it doesn't seem to work well with timm
+            from accelerate.hooks import remove_hook_from_module
+            self.vision_tower = remove_hook_from_module(self.vision_tower, True)
+        except ImportError:
+            pass
 
         vision_config = self.vision_tower.pretrained_cfg
         data_config = resolve_data_config(vision_config) | dict(crop_pct=1) # we don't want a resize crop
@@ -85,12 +88,9 @@ class DetikzifyModel(LlamaModel):
         self.config.mm_hidden_size = self.vision_tower.embed_dim * concat_patches
         self.config.patch_token_id = patch_token_id
         self.config.concat_patches = concat_patches
+        self.config.feature_layer = int(clip(feature_layer, -(depth:=len(self.vision_tower.blocks)), depth-1) % depth)
         self.config.vision_config = vision_config
-        self.config.num_patches = self.get_vision_features( # FIXME: is there a better way to get this?
-            torch.randn((1,) + vision_config['input_size']).to(
-                dtype=self.dtype, device=self.device
-            )
-        ).shape[1]
+        self.config.num_patches = self.vision_tower.patch_embed.num_patches // concat_patches
 
         if not hasattr(self, 'mm_projector'):
             self.mm_projector = nn.Linear(
@@ -117,10 +117,12 @@ class DetikzifyModel(LlamaModel):
             return self
 
     def get_vision_features(self, images):
-        feats = self.vision_tower.forward_features(getattr(images, "pixel_values", images))
-        concat_patches = self.config.concat_patches
-        # remove cls token and concatenate adjacent tokens
-        return feats[:, 1:].reshape(-1, feats.shape[-2] // concat_patches, feats.shape[-1] * concat_patches)
+        concat, n_patch, layer = self.config.concat_patches, self.config.num_patches, self.config.feature_layer
+        pixels = getattr(images, "pixel_values", images)
+        feats = self.vision_tower.get_intermediate_layers(pixels, n=[layer], norm=True)[0]
+        # in case the number of feature vectors is not divisible by the number
+        # of patches we want to concatenate, we remove the first feature(s)
+        return feats[:, -n_patch * concat:].reshape(-1, n_patch, feats.shape[-1] * concat)
 
     def is_tensor(self, thing):
         if isinstance(thing, (BatchEncoding, dict)):
@@ -183,7 +185,7 @@ class DetikzifyModel(LlamaModel):
                     cur_image_idx += 1
                     continue
 
-                cur_image_features = image_features[cur_image_idx]
+                cur_image_features = image_features[cur_image_idx].to(cur_input_embeds.device)
                 num_patches = cur_image_features.shape[0]
                 if (cur_input_ids == self.config.patch_token_id).sum() != num_patches:
                     raise ValueError("The number of image patch tokens should be the same as the number of image patches.")

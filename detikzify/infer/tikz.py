@@ -4,21 +4,19 @@ from io import BytesIO
 from os import environ
 from os.path import isfile, join
 from re import MULTILINE, escape, search
-from subprocess import CalledProcessError, DEVNULL, TimeoutExpired, check_output
+from subprocess import CalledProcessError, DEVNULL, TimeoutExpired
 from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Optional, Union
 
 from PIL import Image
-import requests
 from transformers import TextStreamer
 from transformers.utils import logging
-from transformers.utils.hub import is_remote_url
 
 import fitz
 from pdf2image.pdf2image import convert_from_bytes
 from pdfCropMargins import crop
 
-from ..util import expand
+from ..util import check_output, expand, load
 
 logger = logging.get_logger("transformers")
 
@@ -161,10 +159,10 @@ class DetikzifyPipeline:
             top_k=top_k,
             max_length=tokenizer.text.model_max_length,
             do_sample=True,
-            streamer=TextStreamer(tokenizer.text,
+            streamer=gen_kwargs.pop("streamer", TextStreamer(tokenizer.text,
                 skip_prompt=True,
                 skip_special_tokens=True
-            ),
+            )),
             **gen_kwargs
         )
 
@@ -178,22 +176,25 @@ class DetikzifyPipeline:
             preprocess: whether to preprocess the image (expand to square and trim to content)
             gen_kwargs: additional generation kwargs (potentially overriding the default ones)
         """
-        model, tokenizer = self.model, self.tokenizer
+        model, tokenizer, image = self.model, self.tokenizer, load(image)
 
-        if isinstance(image, str):
-            image = Image.open(requests.get(image, stream=True).raw if is_remote_url(image) else image)
         if preprocess:
             image = expand(image, max(image.size), trim=True)
 
-        return TikzDocument(model.generate(
-            **tokenizer.text(
-                tokenizer.text.convert_ids_to_tokens(model.config.patch_token_id) * model.config.num_patches,
-                return_tensors="pt",
-                add_special_tokens=False,
-            ).to(model.device),
-            images=tokenizer.image(image).unsqueeze(0).to(model.device),
-            **self.gen_kwargs | gen_kwargs
-        ))
+        return TikzDocument(
+            tokenizer.text.decode(
+                model.generate(
+                    **tokenizer.text(
+                        tokenizer.text.convert_ids_to_tokens(model.config.patch_token_id) * model.config.num_patches,
+                        return_tensors="pt",
+                        add_special_tokens=False,
+                    ).to(model.device),
+                    images=tokenizer.image(image).unsqueeze(0).to(model.device, model.dtype),
+                    **self.gen_kwargs | gen_kwargs
+                )[0],
+                skip_special_tokens=True,
+            )
+        )
 
     def __call__(self, *args, **kwargs):
         return self.generate(*args, **kwargs)

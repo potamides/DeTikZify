@@ -26,8 +26,9 @@ def load_codellama(size="7b", **kwargs):
     )
 
 def load(base_model, vision_tower="vit_so400m_patch14_siglip_384.webli", pretrain_mm_mlp_adapter=None, **kwargs):
-    tokenizer_name_or_path = PretrainedConfig.from_pretrained(base_model).name_or_path or base_model
-    tokenizer = AutoTokenizer.from_pretrained(tokenizer_name_or_path,
+    base_tokenizer = PretrainedConfig.from_pretrained(base_model).name_or_path or base_model
+    tokenizer = AutoTokenizer.from_pretrained(
+        pretrained_model_name_or_path=base_tokenizer,
         model_max_length=2048,
         add_bos_token=False,
         add_eos_token=True,
@@ -35,15 +36,18 @@ def load(base_model, vision_tower="vit_so400m_patch14_siglip_384.webli", pretrai
         padding_side="right", # Note: only for training, need to change to "left" for batched inference
         legacy=False
     )
-    model = DetikzifyForCausalLM.from_pretrained(base_model,
-        pad_token_id=tokenizer.pad_token_id,
+    model = DetikzifyForCausalLM.from_pretrained(
+        pretrained_model_name_or_path=base_model,
+        use_cache=True,
         **kwargs
     )
+    model.config.update(dict(  # type: ignore
+        model_type=DetikzifyConfig.model_type,
+        pad_token_id=tokenizer.pad_token_id,
+    ))
 
-    model.config.model_type = DetikzifyConfig.model_type # type: ignore
     if len(tokenizer) > model.config.vocab_size: # type: ignore
         model.resize_token_embeddings(len(tokenizer), pad_to_multiple_of=8) # type: ignore
-
     if pretrain_mm_mlp_adapter and is_remote_url(pretrain_mm_mlp_adapter):
         pretrain_mm_mlp_adapter = DownloadManager().download(pretrain_mm_mlp_adapter)
 
@@ -51,6 +55,8 @@ def load(base_model, vision_tower="vit_so400m_patch14_siglip_384.webli", pretrai
         vision_tower=vision_tower,
         patch_token_id=tokenizer.bos_token_id,
         pretrain_mm_mlp_adapter=pretrain_mm_mlp_adapter,
+        feature_layer=getattr(model.config, "feature_layer", -1), # type: ignore
+        concat_patches=getattr(model.config, "concat_patches", 2) # type: ignore
     )
 
     return model, SimpleNamespace(text=tokenizer, image=processor)
