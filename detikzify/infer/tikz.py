@@ -122,7 +122,7 @@ class TikzDocument:
 
     def rasterize(self, size=384, expand_to_square=True) -> Optional[Image.Image]:
         if self.pdf:
-            image = convert_from_bytes(self.pdf.tobytes(), size=size, single_file=True)[0]
+            image = convert_from_bytes(self.pdf.convert_to_pdf(), size=size, single_file=True)[0]
             if expand_to_square:
                 return expand(image, size)
             return image
@@ -130,7 +130,7 @@ class TikzDocument:
     def save(self, filename: str, *args, **kwargs):
         match filename.split(".")[-1]:
             case "tex": content = self.code.encode()
-            case "pdf" if self.pdf: content = self.pdf.tobytes()
+            case "pdf" if self.pdf: content = self.pdf.convert_to_pdf()
             case fmt if img := self.rasterize(*args, **kwargs):
                 img.save(imgByteArr:=BytesIO(), format=fmt)
                 content = imgByteArr.getvalue()
