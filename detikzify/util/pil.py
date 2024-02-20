@@ -41,7 +41,7 @@ def expand(raw, size, trim=False, border="white"):
     img = img.resize((size, size), Image.Resampling.LANCZOS)
     return _postprocess(img, filetype)
 
-def load(image: Image.Image | str):
+def load(image: Image.Image | str, bg="white"):
     if isinstance(image, str):
         image = Image.open(requests.get(image, stream=True).raw if is_remote_url(image) else image)
-    return image
+    return _postprocess(*_preprocess(image, bg))
