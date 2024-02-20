@@ -30,7 +30,7 @@ class TikzDocument:
     engines = ["pdflatex", "lualatex", "xelatex"]
     Output = namedtuple("Output", ['pdf', 'status', 'log'], defaults=[None, -1, ""])
 
-    def __init__(self, code: str, timeout=120):
+    def __init__(self, code: str, timeout: Optional[int] = 60):
         self.code = code
         self.timeout = timeout
 
