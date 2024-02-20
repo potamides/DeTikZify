@@ -94,7 +94,7 @@ def load_metrics(trainset):
         for metric, update in metrics.items():
             update()
             scores[str(metric)] = metric.compute() # type: ignore
-            del metric
+            metric.reset()
         return scores
 
     return compute
