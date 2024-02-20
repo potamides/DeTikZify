@@ -7,7 +7,7 @@ from PIL import UnidentifiedImageError
 from detikzify.infer import DetikzifyPipeline
 from detikzify.model import load
 from detikzify.util import infer_device
-from transformers import set_seed
+from transformers import set_seed, TextStreamer
 
 try:
     import readline # patches input()
@@ -28,7 +28,15 @@ def parse_args():
 if __name__ == "__main__":
     set_seed(0)
     model, tokenizer = load(parse_args().model_name_or_path)
-    pipe = DetikzifyPipeline(model.to(infer_device()), tokenizer, stream=True) # type: ignore
+    pipe = DetikzifyPipeline(
+        model=model.to(infer_device()), # type: ignore
+        tokenizer=tokenizer,
+        streamer=TextStreamer(
+            tokenizer=tokenizer.text,
+            skip_prompt=True,
+            skip_special_tokens=True
+        )
+    )
 
     if flags.interactive:
         print("generate(*args, **kwargs):", str(DetikzifyPipeline.generate.__doc__).strip())

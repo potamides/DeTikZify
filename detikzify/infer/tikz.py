@@ -3,20 +3,18 @@ from functools import cache, cached_property
 from io import BytesIO
 from os import environ
 from os.path import isfile, join
-from re import MULTILINE, escape, search
+from re import MULTILINE, escape, findall, search
 from subprocess import CalledProcessError, DEVNULL, TimeoutExpired
 from tempfile import NamedTemporaryFile, TemporaryDirectory
-from typing import Optional, Union
+from typing import Dict, Optional, Union
 
 from PIL import Image
-from transformers import TextStreamer
-from transformers.utils import logging
-
 import fitz
 from pdf2image.pdf2image import convert_from_bytes
 from pdfCropMargins import crop
+from transformers.utils import logging
 
-from ..util import check_output, expand, load
+from ..util import check_output, expand
 
 logger = logging.get_logger("transformers")
 
@@ -49,6 +47,26 @@ class TikzDocument:
     @property
     def compiled_with_errors(self) -> bool:
         return self.status != 0
+
+    @property
+    def errors(self, rootfile: Optional[str] = None) -> Dict[int, str]:
+        """
+        Returns a dict of (linenr, errormsg) pairs. linenr==0 is a special
+        value reserved for errors that do not have a linenumber in rootfile.
+        """
+        if not rootfile and (match:=search(r"^\((.+)$", self.log, MULTILINE)):
+            rootfile = match.group(1)
+        else:
+            ValueError("rootfile not found!")
+
+        errors = dict()
+        for file, line, error in findall(r'^(.+):(\d+):(.+)$', self.log, MULTILINE):
+            if file == rootfile:
+                errors[int(line)] = error.strip()
+            else: # error occurred in other file
+                errors[0] = error.strip()
+
+        return errors
 
     @cached_property
     def has_content(self) -> bool:
@@ -138,63 +156,3 @@ class TikzDocument:
 
         with open(filename, "wb") as f:
             f.write(content)
-
-
-class DetikzifyPipeline:
-    def __init__(
-        self,
-        model,
-        tokenizer,
-        temperature: float = 0.8, # based on "a systematic evaluation of large language models of code"
-        top_p: float = 0.95,
-        top_k: int = 0,
-        stream: bool = False,
-        **gen_kwargs,
-    ):
-        self.model = model
-        self.tokenizer = tokenizer
-        self.gen_kwargs = dict(
-            temperature=temperature,
-            top_p=top_p,
-            top_k=top_k,
-            max_length=tokenizer.text.model_max_length,
-            do_sample=True,
-            streamer=gen_kwargs.pop("streamer", TextStreamer(tokenizer.text,
-                skip_prompt=True,
-                skip_special_tokens=True
-            )),
-            **gen_kwargs
-        )
-
-        if not stream:
-            self.gen_kwargs.pop("streamer")
-
-    def generate(self, image: Union[Image.Image, str], preprocess: bool = True, **gen_kwargs):
-        """
-        DeTikZify a raster image.
-            caption: the image
-            preprocess: whether to preprocess the image (expand to square and trim to content)
-            gen_kwargs: additional generation kwargs (potentially overriding the default ones)
-        """
-        model, tokenizer, image = self.model, self.tokenizer, load(image)
-
-        if preprocess:
-            image = expand(image, max(image.size), trim=True)
-
-        return TikzDocument(
-            tokenizer.text.decode(
-                model.generate(
-                    **tokenizer.text(
-                        tokenizer.text.convert_ids_to_tokens(model.config.patch_token_id) * model.config.num_patches,
-                        return_tensors="pt",
-                        add_special_tokens=False,
-                    ).to(model.device),
-                    images=tokenizer.image(image).unsqueeze(0).to(model.device, model.dtype),
-                    **self.gen_kwargs | gen_kwargs
-                )[0],
-                skip_special_tokens=True,
-            )
-        )
-
-    def __call__(self, *args, **kwargs):
-        return self.generate(*args, **kwargs)

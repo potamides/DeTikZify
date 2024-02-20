@@ -81,11 +81,6 @@ def cached_load(*args, **kwargs):
     gr.Info("Instantiating model. This could take a while...") # type: ignore
     return load(*args, **kwargs)
 
-def remove_transparency(image: Dict[str, Image.Image]):
-    background = Image.new('RGBA', (comp:=image['composite']).size, "white")
-    alpha_composite = Image.alpha_composite(background, comp)
-    return alpha_composite.convert("RGB")
-
 def inference(
     model_name: str,
     image: Dict[str, Image.Image],
@@ -108,7 +103,6 @@ def inference(
     generate = DetikzifyPipeline(
         model=model,
         tokenizer=tokenizer,
-        stream=True,
         streamer=streamer,
         temperature=temperature,
         top_p=top_p,
@@ -116,7 +110,7 @@ def inference(
     )
 
     thread = ThreadPool(processes=1)
-    async_result = thread.apply_async(generate, kwds=dict(image=remove_transparency(image), preprocess=preprocess))
+    async_result = thread.apply_async(generate, kwds=dict(image=image['composite'], preprocess=preprocess))
 
     generated_text = ""
     for new_text in streamer:
@@ -193,7 +187,7 @@ def build_ui(
     rasterize=False,
     force_light=False,
     lock_reason="Duplicate this space to be able to change this value.",
-    timeout=120,
+    timeout=60,
 ):
     theme = make_light(gr.themes.Soft()) if force_light else gr.themes.Soft()
     with gr.Blocks(css=CSS, theme=theme, title="DeTikZify") as demo: # type: ignore
