@@ -20,7 +20,9 @@ dependencies = [
   "pdf2image~=1.16",
   "pdfCropMargins~=2.0",
   # webui
-  "gradio~=4.13"
+  "gradio~=4.13",
+  # evaluate
+  "POT~=0.9",
 ]
 requires-python = "~=3.10"
 dynamic = ["version"]
@@ -28,7 +30,6 @@ dynamic = ["version"]
 [project.optional-dependencies]
 evaluate= [
   "torchmetrics~=1.3",
-  "POT~=0.9",
   "Pygments~=2.17",
   "crystalbleu~=0.1",
   "sacremoses~=0.1"
