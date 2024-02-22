@@ -39,7 +39,7 @@ if __name__ == "__main__":
     )
 
     if flags.interactive:
-        print("generate(*args, **kwargs):", str(DetikzifyPipeline.generate.__doc__).strip())
+        print("pipe(*args, **kwargs):", str(DetikzifyPipeline.sample.__doc__).strip())
     else:
         print("Specify the path to an image (locally or as URL) to detikzify it!")
         while True:
