@@ -2,11 +2,12 @@ from collections import deque
 from dataclasses import dataclass
 from math import sqrt
 from multiprocessing.pool import ThreadPool
-from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 from time import time
+from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Union
 
 from PIL import Image
 import torch
+from torchmetrics import Metric
 from transformers import StoppingCriteriaList
 
 from ..evaluate.patchsim import PatchSim
@@ -42,12 +43,17 @@ class NodeState:
 class WideNode(Node):
     state: NodeState
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, is_widen_node=False, **kwargs):
         super().__init__(NodeState(*args, **kwargs))
-        self.discovery_factor = 0.9
-        self.add_child(widen:=Node(self.state))
-        widen.is_widen_node = True
-        #widen.update_policy_value(0.2)
+        self.discovery_factor = 0.6
+        self.is_widen_node = is_widen_node
+        self.update_policy_value(1.0)
+        if not is_widen_node:
+            self.add_child(WideNode(*args, is_widen_node=not is_widen_node, **kwargs))
+
+    def add_child(self, child):
+        self.expanded = self.expanded or not child.is_widen_node
+        super().add_child(child)
 
     @property
     def depth(self) -> int:
@@ -63,22 +69,28 @@ class WideNode(Node):
 
 class DynMinMaxNorm:
     def __init__(self, default_value: Numeric = 0):
-        self.scores = []
+        self.scores = set()
         self.default_value = default_value
 
     def normalize(self, score: Numeric) -> "MinMaxScore":
-        self.scores.append(score)
-        return self.MinMaxScore(score, self.scores, self.default_value)
+        self.scores.add(score)
+        return self.MinMaxScore(score, all_scores=self.scores, default_value=self.default_value)
 
     def __call__(self, *args, **kwargs) -> "MinMaxScore":
         return self.normalize(*args, **kwargs)
 
     class MinMaxScore:
-        def __init__(self, score: Numeric, all_scores: List[Numeric], default_value: Numeric):
-            self.scores = [score]
+        def __init__(
+            self,
+            *scores: Numeric,
+            all_scores: Set[Numeric],
+            default_value: Numeric,
+            no_minmax_scores: List[Numeric] = list(),
+        ):
+            self.scores = list(scores)
             self.all_scores = all_scores
-            self.no_minmax_scores = list()
             self.default_value = default_value
+            self.no_minmax_scores = no_minmax_scores.copy()
 
         @property
         def score(self) -> Numeric:
@@ -90,11 +102,18 @@ class DynMinMaxNorm:
             return score + sum(self.no_minmax_scores)
 
         def __add__(self, other: Any) -> "DynMinMaxNorm.MinMaxScore":
+            new = self.__class__(
+                *self.scores,
+                all_scores=self.all_scores,
+                default_value=self.default_value,
+                no_minmax_scores=self.no_minmax_scores
+            )
             try:
-                self.scores.extend(other.scores)
+                new.scores.extend(other.scores)
+                new.no_minmax_scores.extend(other.no_minmax_scores)
             except AttributeError:
-                self.no_minmax_scores.append(other)
-            return self
+                new.no_minmax_scores.append(other)
+            return new
 
         def __mul__(self, other: Any) -> "DynMinMaxNorm.MinMaxScore":
             return self.score * other
@@ -114,7 +133,7 @@ class DetikzifyGenerator:
         model,
         tokenizer,
         image: Image.Image,
-        fast_metric: bool = False,
+        metric: Optional[Metric] = None,
         compile_timeout: Optional[int] = 60,
         mcts_timeout: Optional[int] = None,
         streamer: Optional[BaseStreamer] = None,
@@ -125,8 +144,8 @@ class DetikzifyGenerator:
 
         self.model = model
         self.tokenizer = tokenizer
+        self.metric = metric
         self.image = image
-        self.fast_metric = fast_metric
         self.compile_timeout = compile_timeout
         self.mcts_timeout = mcts_timeout
         self.streamer = streamer
@@ -134,7 +153,6 @@ class DetikzifyGenerator:
 
         self.solution = deque(maxlen=1)
         self.failed_rollouts = dict()
-        self.metric = PatchSim()
         self.norm = DynMinMaxNorm()
         self.thread = ThreadPool(processes=1)
         self.montecarlo = MonteCarlo(
@@ -152,7 +170,7 @@ class DetikzifyGenerator:
     def __call__(self, *args, **kwargs):
         return self.simulate(*args, **kwargs)
 
-    def simulate(self, expansions: Optional[Numeric] = 1) -> Generator[TikzDocument, None, None]:
+    def simulate(self, expansions: Optional[Numeric] = 1) -> Generator[Tuple[Numeric, TikzDocument], None, None]:
         """
         Run the simulations. Returns all rollouts (successful or unsuccessful)
         in descending order (best rollouts first) of their score.
@@ -160,24 +178,23 @@ class DetikzifyGenerator:
         start_time = time()
         while expansions is None or (expansions:=expansions-1) >= 0:
             self.montecarlo.simulate()
-            try:
-                yield self.solution.pop()
-            except IndexError:
-                pass
+            yield self.solution.pop()
             if self.mcts_timeout is not None and time() - start_time > self.mcts_timeout:
                 return
 
     def generate(self, input_ids: torch.Tensor, streamer: Optional[BaseStreamer] = None, **gen_kwargs) -> torch.Tensor:
-        if input_ids[-1] == self.tokenizer.eos_token_id:
+        streamers = StreamerList(filter(bool, [streamer, self.streamer]))
+        if input_ids.numel() and input_ids[-1] == self.tokenizer.text.eos_token_id:
+            streamers.end()
             return input_ids # prevent continuing generation after encountering eos token
         with torch.inference_mode():
             return self.model.generate(
-                input=input_ids,
+                input_ids=input_ids.unsqueeze(0),
                 images=self.tokenizer.image(self.image).unsqueeze(0).to(self.model.device, self.model.dtype),
-                streamer=StreamerList(filter(bool, [streamer, self.streamer])),
+                streamer=streamers,
                 **self.gen_kwargs,
                 **gen_kwargs
-            )
+            ).squeeze()
 
     def rollout(self, input_ids: torch.Tensor) -> Generator[torch.Tensor, None, None]:
         rollout_control, streamer = ExplicitAbort(), TokenStreamer()
@@ -198,11 +215,14 @@ class DetikzifyGenerator:
                     prev = torch.cat((prev, torch.tensor(line, device=prev.device)))
                     line.clear()
                     yield prev
-        except GeneratorExit:
+            if line:
+                yield torch.cat((prev, torch.tensor(line, device=prev.device)))
+        except (GeneratorExit, KeyboardInterrupt):
             rollout_control.abort()
             async_result.wait()
+            raise
 
-    @cast_cache(lambda tensor: tuple(tensor.tolist()))
+    @cast_cache(lambda token_ids: tuple(token_ids.tolist()))
     def decode(self, token_ids: torch.Tensor) -> TikzDocument:
         return TikzDocument(
             timeout=self.compile_timeout,
@@ -212,8 +232,9 @@ class DetikzifyGenerator:
             )
         )
 
-    @cast_cache(lambda img: img.tobytes(), Image.frombytes)
+    @cast_cache(lambda image: image.tobytes())
     def score(self, image: Image.Image) -> Numeric:
+        assert self.metric
         self.metric.update(image, self.image)
         score = self.metric.compute()
         self.metric.reset()
@@ -237,24 +258,25 @@ class DetikzifyGenerator:
             node.visits += 1
             node, new_nodes = self.merge(node.parent, new_nodes) # type: ignore
 
-        tikz = self.decode(new_nodes[-1].token_ids)
+        tikz = self.decode((new_nodes or [node])[-1].token_ids)
         skip_idx = round(sqrt(len(new_nodes)))
 
         if tikz.has_content:
             for new_node in new_nodes[:skip_idx]:
                 node.add_child(node:=new_node)
         else:
-            error_idx = max(min(tikz.errors), 1) - 1 - node.depth
+            error_idx = max(0, max(1, errorln:=min(tikz.errors)) - 1 - node.depth)
             for new_node in new_nodes[:min(error_idx, skip_idx)]:
                 node.add_child(node:=new_node)
-            self.failed_rollouts[new_nodes[error_idx].state] = new_nodes[error_idx:]
+            if errorln: # only save a failed rollout when we can locate the error
+                self.failed_rollouts[new_nodes[error_idx].state] = new_nodes[error_idx:]
 
-        if self.fast_metric:
-            score = tikz.has_content - tikz.compiled_with_errors
-        else:
+        if self.metric:
             score = self.score(tikz.rasterize()) if tikz.has_content else -1 # type: ignore
+        else: # if we do not have a metric, use compiler logs instead
+            score = tikz.has_content - tikz.compiled_with_errors
 
-        node.update_win_value(self.norm(score) if tikz.has_content and not self.fast_metric else score)
+        node.update_win_value(self.norm(score) if tikz.has_content and self.metric else score)
         self.solution.append((score, tikz))
 
     def merge(self, node: WideNode, nodes_to_merge: List[WideNode]) -> Tuple[WideNode, List[WideNode]]:
@@ -282,6 +304,8 @@ class DetikzifyPipeline:
     ):
         self.model = model
         self.tokenizer = tokenizer
+        self.metric = PatchSim()
+        self.fast_metric = fast_metric
         self.gen_kwargs: Dict[str, Any] = dict(
             temperature=temperature,
             top_p=top_p,
@@ -289,7 +313,6 @@ class DetikzifyPipeline:
             max_length=tokenizer.text.model_max_length,
             do_sample=True,
             compile_timeout=compile_timeout,
-            fast_metric=fast_metric,
             **gen_kwargs
         )
 
@@ -325,7 +348,7 @@ class DetikzifyPipeline:
         expansions: Optional[Numeric] = None,
         timeout: Optional[int] = None,
         **gen_kwargs,
-    ) -> Generator[TikzDocument, None, None]:
+    ) -> Generator[Tuple[Numeric, TikzDocument], None, None]:
         """
         DeTikZify a raster image using MCTS. Returns an iterator yielding
         (score, tikzdoc) tuples of TikZ documents created during rollouts.
@@ -342,6 +365,7 @@ class DetikzifyPipeline:
         generator = DetikzifyGenerator(
             model=self.model,
             tokenizer=self.tokenizer,
+            metric=None if self.fast_metric else self.metric.load(),
             mcts_timeout=timeout or None,
             image=self.load(image, preprocess=preprocess),
             **self.gen_kwargs,

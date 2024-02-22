@@ -40,7 +40,8 @@ class TokenStreamer(BaseStreamer):
             self.next_tokens_are_prompt = False
             return
 
-        map(partial(self.token_queue.put, timeout=self.timeout), value.tolist())
+        for token_id in value.tolist():
+            self.token_queue.put(token_id, timeout=self.timeout)
 
     def end(self):
         self.next_tokens_are_prompt = True

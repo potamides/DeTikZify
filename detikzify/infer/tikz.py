@@ -54,19 +54,21 @@ class TikzDocument:
         Returns a dict of (linenr, errormsg) pairs. linenr==0 is a special
         value reserved for errors that do not have a linenumber in rootfile.
         """
-        if not rootfile and (match:=search(r"^\((.+)$", self.log, MULTILINE)):
-            rootfile = match.group(1)
-        else:
-            ValueError("rootfile not found!")
+        if self.compiled_with_errors:
+            if not rootfile and (match:=search(r"^\((.+)$", self.log, MULTILINE)):
+                rootfile = match.group(1)
+            else:
+                ValueError("rootfile not found!")
 
-        errors = dict()
-        for file, line, error in findall(r'^(.+):(\d+):(.+)$', self.log, MULTILINE):
-            if file == rootfile:
-                errors[int(line)] = error.strip()
-            else: # error occurred in other file
-                errors[0] = error.strip()
+            errors = dict()
+            for file, line, error in findall(r'^(.+):(\d+):(.+)$', self.log, MULTILINE):
+                if file == rootfile:
+                    errors[int(line)] = error.strip()
+                else: # error occurred in other file
+                    errors[0] = error.strip()
 
-        return errors
+            return errors or {0: "Fatal error occurred, no output PDF file produced!"}
+        return dict()
 
     @cached_property
     def has_content(self) -> bool:
@@ -89,7 +91,7 @@ class TikzDocument:
 
                 try:
                     # compile
-                    errorln, tmppdf, outpdf = 0, f"{tmpfile.name}.pdf", join(tmpdirname, "tikz.pdf")
+                    errorln, tmppdf, outpdf = -1, f"{tmpfile.name}.pdf", join(tmpdirname, "tikz.pdf")
                     open(f"{tmpfile.name}.bbl", 'a').close() # some classes expect a bibfile
 
                     def try_save_last_page():
