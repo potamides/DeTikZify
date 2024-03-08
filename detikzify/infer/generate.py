@@ -261,7 +261,7 @@ class DetikzifyGenerator:
         tikz = self.decode((new_nodes or [node])[-1].token_ids)
         skip_idx = round(sqrt(len(new_nodes)))
 
-        if tikz.has_content:
+        if scorable:=tikz.is_rasterizable:
             for new_node in new_nodes[:skip_idx]:
                 node.add_child(node:=new_node)
         else:
@@ -272,11 +272,11 @@ class DetikzifyGenerator:
                 self.failed_rollouts[new_nodes[error_idx].state] = new_nodes[error_idx:]
 
         if self.metric:
-            score = self.score(tikz.rasterize()) if tikz.has_content else -1 # type: ignore
+            score = self.score(tikz.rasterize()) if scorable else -1 # type: ignore
         else: # if we do not have a metric, use compiler logs instead
-            score = tikz.has_content - tikz.compiled_with_errors
+            score = scorable - tikz.compiled_with_errors
 
-        node.update_win_value(self.norm(score) if tikz.has_content and self.metric else score)
+        node.update_win_value(self.norm(score) if scorable and self.metric else score)
         self.solution.append((score, tikz))
 
     def merge(self, node: WideNode, nodes_to_merge: List[WideNode]) -> Tuple[WideNode, List[WideNode]]:

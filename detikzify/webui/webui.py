@@ -124,7 +124,7 @@ def tex_compile(
     rasterize: bool
 ):
     tikzdoc = TikzDocument(code, timeout=timeout)
-    if not tikzdoc.has_content:
+    if not tikzdoc.is_rasterizable:
         if tikzdoc.compiled_with_errors:
             raise gr.Error("TikZ code did not compile!") # type: ignore
         else:

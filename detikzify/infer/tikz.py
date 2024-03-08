@@ -71,6 +71,11 @@ class TikzDocument:
         return dict()
 
     @cached_property
+    def is_rasterizable(self) -> bool:
+        """true if we have an image"""
+        return self.rasterize() is not None
+
+    @cached_property
     def has_content(self) -> bool:
         """true if we have an image that isn't empty"""
         return (img:=self.rasterize()) is not None and img.getcolors(1) is None
