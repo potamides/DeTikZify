@@ -12,6 +12,7 @@ from torch.cuda import is_available as is_cuda_available, is_bf16_supported
 import torch.nn.functional as F
 from torchmetrics import Metric
 from torchmetrics.functional import pairwise_cosine_similarity
+from transformers import PreTrainedModel
 
 from ..util import expand, infer_device, load
 
@@ -58,6 +59,19 @@ class PatchSim(Metric):
         vision_config = self.model.pretrained_cfg
         data_config = resolve_data_config(vision_config) | dict(crop_pct=1) # we don't want a resize crop
         return create_transform(**data_config, is_training=False)
+
+    @classmethod
+    def from_detikzify(cls, model: PreTrainedModel, *args, **kwargs):
+        derived_kwargs = dict(
+            feature_layer = model.config.feature_layer,
+            model_name = model.config.vision_config['architecture'],
+            device = model.device,
+            dtype = model.dtype,
+        )
+
+        patchsim = cls(*args, **(derived_kwargs | kwargs))
+        patchsim.model = model.get_model().vision_tower
+        return patchsim
 
     def get_vision_features(self, image: Image.Image | str):
         image = load(image)
