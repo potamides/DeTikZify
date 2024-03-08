@@ -14,6 +14,7 @@
 #    limitations under the License.
 
 
+from dataclasses import dataclass
 from itertools import count
 from pickle import UnpicklingError
 from typing import List, Optional, Tuple, Union
@@ -26,7 +27,9 @@ import torch
 import torch.nn as nn
 from torch.nn import CrossEntropyLoss
 import torch.nn.functional as F
+from torchvision.transforms import Compose
 from transformers import BatchEncoding, LlamaConfig, LlamaForCausalLM, LlamaModel
+from transformers import PreTrainedTokenizer
 from transformers.modeling_outputs import (
     BaseModelOutputWithPast,
     CausalLMOutputWithPast,
@@ -37,6 +40,18 @@ logger = logging.get_logger("transformers")
 
 class DetikzifyConfig(LlamaConfig):
     model_type = "detikzify"
+
+
+@dataclass(frozen=True)
+class DetikzifyTokenizer():
+    text: PreTrainedTokenizer
+    image: Compose
+
+    def __call__(self, *args, **kwargs):
+        try:
+            return self.text(*args, **kwargs)
+        except:
+            return self.image(*args, **kwargs)
 
 
 class DetikzifyModel(LlamaModel):
@@ -52,7 +67,7 @@ class DetikzifyModel(LlamaModel):
             self.mm_projector = nn.Linear(config.mm_hidden_size, config.hidden_size)
 
     @property
-    @torch._dynamo.disable
+    @torch._dynamo.disable(recursive=False)
     def vision_tower(self):
         return self._hidden_vision_tower[0]
 

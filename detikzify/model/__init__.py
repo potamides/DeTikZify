@@ -1,10 +1,9 @@
-from transformers import AutoConfig, AutoModel
-from types import SimpleNamespace
 from datasets import DownloadManager
-from transformers.utils.hub import is_remote_url
+from transformers import AutoConfig, AutoModel
 from transformers import AutoTokenizer, PretrainedConfig
+from transformers.utils.hub import is_remote_url
 
-from .modeling_detikzify import DetikzifyConfig, DetikzifyForCausalLM
+from .detikzify import DetikzifyConfig, DetikzifyForCausalLM, DetikzifyTokenizer
 
 def register():
     try:
@@ -15,7 +14,7 @@ def register():
 
 def load_deepseek(size="1.3b", **kwargs):
     return load(
-        base_model=f"deepseek-ai/deepseek-coder-{size}-base",
+        base_model=f"deepseek-ai/deepseek-coder-{size}-base{'-v1.5' if size == '7b' else ''}",
         **kwargs
     )
 
@@ -41,10 +40,8 @@ def load(base_model, vision_tower="vit_so400m_patch14_siglip_384.webli", pretrai
         use_cache=True,
         **kwargs
     )
-    model.config.update(dict(  # type: ignore
-        model_type=DetikzifyConfig.model_type,
-        pad_token_id=tokenizer.pad_token_id,
-    ))
+    model.config.model_type = DetikzifyConfig.model_type # type: ignore
+    model.generation_config.pad_token_id = tokenizer.pad_token_id # type: ignore
 
     if len(tokenizer) > model.config.vocab_size: # type: ignore
         model.resize_token_embeddings(len(tokenizer), pad_to_multiple_of=8) # type: ignore
@@ -59,4 +56,4 @@ def load(base_model, vision_tower="vit_so400m_patch14_siglip_384.webli", pretrai
         concat_patches=getattr(model.config, "concat_patches", 2) # type: ignore
     )
 
-    return model, SimpleNamespace(text=tokenizer, image=processor)
+    return model, DetikzifyTokenizer(text=tokenizer, image=processor)
