@@ -298,8 +298,8 @@ class DetikzifyPipeline:
         self,
         model,
         tokenizer,
-        temperature: float = 0.8, # based on "a systematic evaluation of large language models of code"
-        top_p: float = 0.95,
+        temperature: float = 0.7,
+        top_p: float = 0.9,
         top_k: int = 0,
         compile_timeout: Optional[int] = 60, # same as old overleaf compile timeout
         fast_metric: bool = False,
