@@ -177,7 +177,7 @@ if __name__ == "__main__":
     for model_name, path in map(lambda s: s.split('='), tqdm(args.path, desc="Predicting")):
         if path.endswith("json"):
             with open(path) as f:
-                predictions[model_name] = [[TikzDocument(code) for code in sample] for sample in load_json(f)]
+                predictions[model_name] = [[TikzDocument(code, None) for code in sample] for sample in load_json(f)]
         else:
             cache_file = join(args.cache_dir, f'{model_name}.json') if args.cache_dir else None
             predictions[model_name] = predict(
