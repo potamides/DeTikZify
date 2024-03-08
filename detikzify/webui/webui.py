@@ -2,14 +2,15 @@ from functools import lru_cache
 from inspect import signature
 from multiprocessing.pool import ThreadPool
 from os.path import basename
+from sys import float_info
 from tempfile import NamedTemporaryFile
 from textwrap import dedent
 from typing import Dict
 
 from PIL import Image
 import gradio as gr
-from torch import float16, bfloat16
-from torch.cuda import is_bf16_supported, is_available as is_cuda_available
+from torch import bfloat16, float16
+from torch.cuda import is_available as is_cuda_available, is_bf16_supported
 from transformers import TextIteratorStreamer
 from transformers.utils import is_flash_attn_2_available
 
@@ -104,7 +105,7 @@ def inference(
         model=model,
         tokenizer=tokenizer,
         streamer=streamer,
-        temperature=temperature,
+        temperature=temperature + float_info.epsilon,
         top_p=top_p,
         top_k=top_k,
     )
