@@ -1,4 +1,3 @@
-from functools import partial
 from queue import Queue
 from typing import Optional
 
