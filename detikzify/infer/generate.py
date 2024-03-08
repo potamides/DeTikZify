@@ -268,7 +268,10 @@ class DetikzifyGenerator:
             error_idx = max(0, max(1, errorln:=min(tikz.errors)) - 1 - node.depth)
             for new_node in new_nodes[:min(error_idx, skip_idx)]:
                 node.add_child(node:=new_node)
-            if errorln: # only save a failed rollout when we can locate the error
+             # 1. only save a failed rollout when we can locate the error
+             # 2. in rare cases error_idx can be larger than the amount of
+             # nodes due to the way we handle newlines
+            if errorln and error_idx < len(new_nodes):
                 self.failed_rollouts[new_nodes[error_idx].state] = new_nodes[error_idx:]
 
         if self.metric:
