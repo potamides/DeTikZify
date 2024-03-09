@@ -115,9 +115,10 @@ def predict(model_name, base_model, testset, cache_file=None, timeout=None, key=
             predictions = [[TikzDocument(code, timeout=None) for code in sample] for sample in load_json(f)]
     try:
         worker_chunk = list(chunk(list(testset), WORLD_SIZE))[RANK]
-        for idx, item in enumerate(tqdm(worker_chunk, desc=f"{model_name.title()} ({RANK})", leave=None, position=RANK*2)):
+        # FIXME: right now there only is a progress bar for Rank 0
+        for idx, item in enumerate(tqdm(worker_chunk, desc=f"{model_name.title()} ({RANK})", disable=RANK!=0)):
             if idx >= len(predictions):
-                tikz = generate(pipe, image=item[key], timeout=timeout, position=RANK*2+1, leave=False) # type: ignore
+                tikz = generate(pipe, image=item[key], timeout=timeout, position=1, leave=False, disable=RANK!=0) # type: ignore
                 worker_preds.append(tikz)
         del model, tokenizer, pipe
     finally:
