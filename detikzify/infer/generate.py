@@ -307,7 +307,7 @@ class DetikzifyPipeline:
     ):
         self.model = model
         self.tokenizer = tokenizer
-        self.metric = PatchSim.from_detikzify(model, feature_layer=-3)
+        self.metric = PatchSim.from_detikzify(model, feature_layer=-3, sync_on_compute=False)
         self.fast_metric = fast_metric
         self.gen_kwargs: Dict[str, Any] = dict(
             temperature=temperature,
