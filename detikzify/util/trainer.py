@@ -1,3 +1,4 @@
+from numpy import arange
 from transformers import (
     IntervalStrategy,
     TrainerCallback,
@@ -7,15 +8,14 @@ from transformers import (
 )
 from transformers.trainer_utils import has_length
 
-
-class HalfEpochSaveCallback(TrainerCallback):
+class SplitEpochSaveCallback(TrainerCallback):
     """
-    If save_strategy==EPOCH also save a checkpoint after completing 50% of an
-    epoch (default).
+    If save_strategy==EPOCH also save checkpoints at arbitrary fractions of an
+    epoch (controlled by step_size).
     """
 
-    def __init__(self, ratio: float = 0.5):
-        self.ratio = ratio
+    def __init__(self, step_size: float = 0.5):
+        self.steps = arange(step_size, 1, step_size)
 
     def on_train_begin(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
         if has_length(train_dataloader:=kwargs['train_dataloader']):
@@ -24,8 +24,9 @@ class HalfEpochSaveCallback(TrainerCallback):
             self.num_update_steps_per_epoch = args.max_steps
 
     def on_step_end(self, args: TrainingArguments, state: TrainerState, control: TrainerControl, **kwargs):
+        steps = [round(self.num_update_steps_per_epoch * step) for step in self.steps]
         if (
-            state.global_step % self.num_update_steps_per_epoch == round(self.num_update_steps_per_epoch * self.ratio)
+            state.global_step % self.num_update_steps_per_epoch in steps
             and args.save_strategy == IntervalStrategy.EPOCH
         ):
             control.should_save = True

@@ -18,7 +18,7 @@ from transformers import Trainer, TrainerCallback, TrainingArguments
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import logging
 
-from ..util import convert, infer_device, HalfEpochSaveCallback
+from ..util import convert, infer_device, SplitEpochSaveCallback
 from .pretrain import DataCollatorForImageTextTraining, preprocess
 
 logger = logging.get_logger("transformers")
@@ -194,7 +194,7 @@ def train(
             group_by_length=group_by_length,
             deepspeed=deepspeed,
         ),
-        callbacks=[HalfEpochSaveCallback()],
+        callbacks=[SplitEpochSaveCallback(step_size=0.25)],
         data_collator=DataCollatorForImageTextTraining(
             tokenizer=tokenizer.text,
             pad_to_multiple_of=8
