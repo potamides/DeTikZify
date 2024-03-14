@@ -21,8 +21,7 @@ MODELS = {
     basename(model): model
     for model in [
         "nllg/detikzify-ds-1.3b",
-        "nllg/detikzify-ds-5.7b",
-        "nllg/detikzify-ds-6.7b",
+        "nllg/detikzify-ds-7b",
         "nllg/detikzify-tl-1.1b",
         "nllg/detikzify-cl-7b",
     ]
