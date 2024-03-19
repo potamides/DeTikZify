@@ -208,7 +208,7 @@ def train(
     if deepspeed:
         from deepspeed.utils.zero_to_fp32 import load_state_dict_from_zero_checkpoint
         last_checkpoint = get_last_checkpoint(output_dir)
-        load_state_dict_from_zero_checkpoint(trainer.model, last_checkpoint)
+        load_state_dict_from_zero_checkpoint(trainer.model.float(), last_checkpoint)
 
     trainer.save_model(output_dir)
     trainer.save_state()
