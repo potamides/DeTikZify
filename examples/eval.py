@@ -11,6 +11,8 @@ from os.path import isfile, join
 from time import time
 
 from datasets import load_dataset
+from numpy import array
+from scipy.stats.mstats import winsorize
 from torch import bfloat16, distributed as dist, float16
 from torch.cuda import is_available as is_cuda_available, is_bf16_supported
 from tqdm import tqdm
@@ -128,27 +130,32 @@ def predict(model_name, base_model, testset, cache_file=None, timeout=None, key=
                 dump([[p.code for p in ps] for ps in predictions], f)
     return predictions
 
-def load_metrics(trainset, **kwargs):
+def load_metrics(trainset, measure_throughput=False, **kwargs):
     bleu = CrystalBLEU(corpus=trainset, **kwargs)
     eed = TexEditDistance(**kwargs)
     wmdsim = PatchSim(**kwargs)
     poolsim = PatchSim(pool=True, **kwargs)
     kid = KernelInceptionDistance(**kwargs)
 
-    def compile_sampling_rate(predictions):
+    def mean_token_efficiency(predictions, limit=0.05):
         samples = list()
         for preds in predictions:
-            samples.append(len(preds))
-        return sum(samples) / len(predictions)
+            samples.append(len(preds[-1])/sum(map(len, preds)))
+        return winsorize(array(samples), limits=limit).mean().item()
+
+    def mean_sampling_throughput(predictions, limit=0.05):
+        return winsorize(array(list(map(len, predictions))), limits=limit).mean().item()
 
     def compute(references, predictions):
         ref_code, pred_code = [[ref['code']] for ref in references], [pred[-1].code for pred in predictions]
         ref_image, pred_image = [ref['image'] for ref in references], [pred[-1].rasterize() for pred in predictions]
         assert all(pred[-1].is_rasterizable for pred in predictions)
 
-        scores = {
-            "CompileSamplingRate": compile_sampling_rate(predictions=predictions)
-        }
+        if measure_throughput:
+            scores = {"MeanSamplingThroughput": mean_sampling_throughput(predictions=predictions)}
+        else:
+            scores = {"MeanTokenEfficiency": mean_token_efficiency(predictions=predictions)}
+
         metrics = {
             bleu: partial(bleu.update, list_of_references=ref_code, hypotheses=pred_code),
             eed: partial(eed.update, target=ref_code, preds=pred_code),
@@ -191,7 +198,7 @@ if __name__ == "__main__":
 
     if RANK == 0: # Scoring only on main process
         scores = dict()
-        metrics = load_metrics(trainset['code'], sync_on_compute=False) # type: ignore
+        metrics = load_metrics(trainset['code'], measure_throughput=args.timeout is not None, sync_on_compute=False) # type: ignore
         for model_name, prediction in tqdm(predictions.items(), desc="Computing metrics", total=len(predictions)):
             scores[model_name] = metrics(references=testset, predictions=prediction)
         with open(args.output, "w") as file:
