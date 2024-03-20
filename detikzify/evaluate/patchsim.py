@@ -57,7 +57,7 @@ class PatchSim(Metric):
     @cached_property
     def processor(self):
         vision_config = self.model.pretrained_cfg
-        data_config = resolve_data_config(vision_config) | dict(crop_pct=1) # we don't want a resize crop
+        data_config = resolve_data_config(vision_config)
         return create_transform(**data_config, is_training=False)
 
     @classmethod

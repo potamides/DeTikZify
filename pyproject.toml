@@ -31,7 +31,8 @@ evaluate = [
   "torchmetrics~=1.3.1",
   "Pygments~=2.17.2",
   "crystalbleu~=0.1.0",
-  "sacremoses~=0.1.1"
+  "sacremoses~=0.1.1",
+  "dreamsim~=0.1.3"
 ]
 deepspeed = [
   "deepspeed~=0.13.4"

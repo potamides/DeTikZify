@@ -6,8 +6,8 @@ from pickle import dump, load
 from typing import List
 
 from crystalbleu import corpus_bleu
-from datasets.config import HF_METRICS_CACHE
 from datasets.utils.logging import get_logger
+from huggingface_hub import cached_assets_path
 from pygments.lexers.markup import TexLexer
 from pygments.token import Comment, Name, Text
 from sacremoses import MosesTokenizer
@@ -57,9 +57,7 @@ class CrystalBLEU(Metric):
         """
         Computes trivially shared ngrams and caches them.
         """
-        cache_dir = HF_METRICS_CACHE / self.__class__.__name__.lower()
-        cache_dir.mkdir(parents=True, exist_ok=True)
-
+        cache_dir = cached_assets_path(library_name="evaluate", namespace=self.__class__.__name__.lower())
         dhash = md5()
         dhash.update(str(sorted(self.corpus)).encode())
         hashname = f"{dhash.hexdigest()}.pkl"

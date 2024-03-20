@@ -24,6 +24,7 @@ from detikzify.evaluate import (
     KernelInceptionDistance,
     PatchSim,
     TexEditDistance,
+    DreamSim,
 )
 from detikzify.infer import DetikzifyPipeline, TikzDocument
 from detikzify.model import load as load_model
@@ -133,8 +134,9 @@ def predict(model_name, base_model, testset, cache_file=None, timeout=None, key=
 def load_metrics(trainset, measure_throughput=False, **kwargs):
     bleu = CrystalBLEU(corpus=trainset, **kwargs)
     eed = TexEditDistance(**kwargs)
-    wmdsim = PatchSim(**kwargs)
+    emdsim = PatchSim(**kwargs)
     poolsim = PatchSim(pool=True, **kwargs)
+    dreamsim = DreamSim(**kwargs)
     kid = KernelInceptionDistance(**kwargs)
 
     def mean_token_efficiency(predictions, limit=0.05):
@@ -159,8 +161,9 @@ def load_metrics(trainset, measure_throughput=False, **kwargs):
         metrics = {
             bleu: partial(bleu.update, list_of_references=ref_code, hypotheses=pred_code),
             eed: partial(eed.update, target=ref_code, preds=pred_code),
-            wmdsim: lambda: [wmdsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_image)],
+            emdsim: lambda: [emdsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_image)],
             poolsim: lambda: [poolsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_image)],
+            dreamsim: lambda: [dreamsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_image)],
             kid: lambda: [(kid.update(img1, True), kid.update(img2, False)) for img1, img2 in zip(ref_image, pred_image)],
         }
 

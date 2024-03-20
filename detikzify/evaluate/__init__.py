@@ -3,7 +3,7 @@ from typing import Any
 
 from .patchsim import * # this metric is used by MCTS, so it is not optional
 
-__all__ = ["PatchSim", "CrystalBLEU", "KernelInceptionDistance", "TexEditDistance"] # type: ignore
+__all__ = ["PatchSim", "CrystalBLEU", "KernelInceptionDistance", "TexEditDistance", "DreamSim"] # type: ignore
 
 # lazy import optional metrics (https://peps.python.org/pep-0562/)
 def __getattr__(name) -> Any:
@@ -17,6 +17,8 @@ def __getattr__(name) -> Any:
                 return load("kid")
             case "TexEditDistance":
                 return load("eed")
+            case "DreamSim":
+                return load("dreamsim")
     except ImportError:
         raise ValueError(
             "Missing dependencies: "
