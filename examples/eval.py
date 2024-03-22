@@ -142,7 +142,7 @@ def load_metrics(trainset, measure_throughput=False, **kwargs):
     def mean_token_efficiency(predictions, limit=0.05):
         samples = list()
         for preds in predictions:
-            samples.append(len(preds[-1])/sum(map(len, preds)))
+            samples.append(len(preds[-1].code)/sum(len(pred.code) for pred in preds))
         return winsorize(array(samples), limits=limit).mean().item()
 
     def mean_sampling_throughput(predictions, limit=0.05):
