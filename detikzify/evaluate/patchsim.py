@@ -45,10 +45,6 @@ class PatchSim(Metric):
     def __str__(self):
         return f"{self.__class__.__name__} ({'Pool' if self.pool else 'EMD'})"
 
-    def load(self):
-        self.model # eagerly load the model
-        return self
-
     @cached_property
     def model(self):
         model = create_model(self.model_name, pretrained=True)

@@ -3,7 +3,7 @@ from dataclasses import dataclass
 from math import sqrt
 from multiprocessing.pool import ThreadPool
 from time import time
-from typing import Any, Dict, Generator, List, Optional, Set, Tuple, Union
+from typing import Any, Dict, Generator, List, Literal, Optional, Set, Tuple, Union
 
 from PIL import Image
 import torch
@@ -302,13 +302,19 @@ class DetikzifyPipeline:
         top_p: float = 0.9,
         top_k: int = 0,
         compile_timeout: Optional[int] = 60, # same as old overleaf compile timeout
-        fast_metric: bool = False,
+        metric: Union[Literal["model", "fast"], Metric]  = "model",
         **gen_kwargs,
     ):
         self.model = model
         self.tokenizer = tokenizer
-        self.metric = PatchSim.from_detikzify(model, feature_layer=-3, sync_on_compute=False)
-        self.fast_metric = fast_metric
+
+        if metric == "model":
+            self.metric = PatchSim.from_detikzify(model, feature_layer=-3, sync_on_compute=False)
+        elif metric == "fast":
+            self.metric = None
+        else:
+            self.metric = metric
+
         self.gen_kwargs: Dict[str, Any] = dict(
             temperature=temperature,
             top_p=top_p,
@@ -368,7 +374,7 @@ class DetikzifyPipeline:
         generator = DetikzifyGenerator(
             model=self.model,
             tokenizer=self.tokenizer,
-            metric=None if self.fast_metric else self.metric.load(),
+            metric=self.metric,
             mcts_timeout=timeout or None,
             image=self.load(image, preprocess=preprocess),
             **self.gen_kwargs,

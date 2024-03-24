@@ -109,9 +109,10 @@ def predict(model_name, base_model, testset, cache_file=None, timeout=None, key=
         torch_dtype=bfloat16 if is_cuda_available() and is_bf16_supported() else float16,
         attn_implementation="flash_attention_2" if is_flash_attn_2_available() else None,
     )
-    # hyperparams based on "a systematic evaluation of large language models of code"
     # if we don't have a timeout (i.e., only run mcts until we obtain smth compileable), we can use fast metrics
-    pipe = DetikzifyPipeline(model=model, tokenizer=tokenizer, temperature=0.8, top_p=0.95, fast_metric=timeout is None)
+    metric_type = "model" if timeout else "fast"
+    # hyperparams based on "a systematic evaluation of large language models of code"
+    pipe = DetikzifyPipeline(model=model, tokenizer=tokenizer, temperature=0.8, top_p=0.95, metric=metric_type)
     if cache_file and isfile(cache_file):
         with open(cache_file) as f:
             # disable timeout as we know that the (last) images compile
