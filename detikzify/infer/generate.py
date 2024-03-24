@@ -183,13 +183,15 @@ class DetikzifyGenerator:
                 return
 
     def generate(self, input_ids: torch.Tensor, streamer: Optional[BaseStreamer] = None, **gen_kwargs) -> torch.Tensor:
-        streamers = StreamerList(filter(bool, [streamer, self.streamer]))
-        if input_ids.numel() and input_ids[-1] == self.tokenizer.text.eos_token_id:
+        streamers, numel = StreamerList(filter(bool, [streamer, self.streamer])), input_ids.numel()
+        max_length = {**self.model.generation_config.to_dict(), **self.gen_kwargs, **gen_kwargs}["max_length"]
+        if (numel and input_ids[-1] == self.tokenizer.text.eos_token_id) or numel >= max_length:
             streamers.end()
-            return input_ids # prevent continuing generation after encountering eos token
+            return input_ids # prevent continuing generation after eos
         with torch.inference_mode():
             return self.model.generate(
                 input_ids=input_ids.unsqueeze(0),
+                bad_words_ids=[[self.model.config.patch_token_id]],
                 images=self.tokenizer.image(self.image).unsqueeze(0).to(self.model.device, self.model.dtype),
                 streamer=streamers,
                 **self.gen_kwargs,
@@ -265,7 +267,9 @@ class DetikzifyGenerator:
             for new_node in new_nodes[:skip_idx]:
                 node.add_child(node:=new_node)
         else:
-            error_idx = max(0, max(1, errorln:=min(tikz.errors)) - 1 - node.depth)
+            # in rare cases there are no compile errors even though the tikzpic
+            # is not rasterizable because only cropping failed -> use [0]
+            error_idx = max(0, max(1, errorln:=min(tikz.errors or [0])) - 1 - node.depth)
             for new_node in new_nodes[:min(error_idx, skip_idx)]:
                 node.add_child(node:=new_node)
              # 1. only save a failed rollout when we can locate the error

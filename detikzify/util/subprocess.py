@@ -2,6 +2,12 @@ from os import killpg, getpgid
 from subprocess import Popen, TimeoutExpired, CalledProcessError, CompletedProcess, PIPE
 from signal import SIGKILL
 
+def safe_killpg(pgid, signal):
+    try:
+        killpg(pgid, signal)
+    except ProcessLookupError:
+        pass # Supress the race condition error; bpo-40550.
+
 # Patch subprocess.run and subprocess.check_output to also kill children of the
 # started process on timeouts (cf.
 # https://alexandra-zaharia.github.io/posts/kill-subprocess-and-its-children-on-timeout-python/)
@@ -10,11 +16,11 @@ def run(*popenargs, input=None, timeout=None, check=False, **kwargs):
         try:
             stdout, stderr = process.communicate(input, timeout=timeout)
         except TimeoutExpired:
-            killpg(getpgid(process.pid), SIGKILL)
+            safe_killpg(getpgid(process.pid), SIGKILL)
             process.wait()
             raise
         except:
-            killpg(getpgid(process.pid), SIGKILL)
+            safe_killpg(getpgid(process.pid), SIGKILL)
             raise
         retcode = process.poll()
         if check and retcode:
