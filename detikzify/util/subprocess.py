@@ -2,9 +2,9 @@ from os import killpg, getpgid
 from subprocess import Popen, TimeoutExpired, CalledProcessError, CompletedProcess, PIPE
 from signal import SIGKILL
 
-def safe_killpg(pgid, signal):
+def safe_killpg(pid, signal):
     try:
-        killpg(pgid, signal)
+        killpg(getpgid(pid), signal)
     except ProcessLookupError:
         pass # Supress the race condition error; bpo-40550.
 
@@ -16,11 +16,11 @@ def run(*popenargs, input=None, timeout=None, check=False, **kwargs):
         try:
             stdout, stderr = process.communicate(input, timeout=timeout)
         except TimeoutExpired:
-            safe_killpg(getpgid(process.pid), SIGKILL)
+            safe_killpg(process.pid, SIGKILL)
             process.wait()
             raise
         except:
-            safe_killpg(getpgid(process.pid), SIGKILL)
+            safe_killpg(process.pid, SIGKILL)
             raise
         retcode = process.poll()
         if check and retcode:
