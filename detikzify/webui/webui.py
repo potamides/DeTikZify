@@ -37,8 +37,10 @@ CSS = """
     #output-code {
         flex-grow: 1;
         height: 50vh;
-        overflow-y: clip !important;
         scrollbar-width: thin !important;
+    }
+    #output-code .hide {
+        display: none;
     }
     #output-code .cm-scroller {
         flex-grow: 1;
