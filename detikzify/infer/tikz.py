@@ -117,7 +117,7 @@ class TikzDocument:
                                 args=["latexmk", "-f", "-nobibtex", "-norc", "-file-line-error", "-interaction=nonstopmode", f"-{engine}", tmpfile.name]
                             )
                         except (CalledProcessError, TimeoutExpired) as proc:
-                            log = getattr(proc, "output", b'').decode(errors="ignore")
+                            log = (getattr(proc, "output", b'') or b'').decode(errors="ignore")
                             error = search(rf'^{escape(tmpfile.name)}:(\d+):.+$', log, MULTILINE)
                             # only update status and log if first error occurs later than in previous engine
                             if (linenr:=int(error.group(1)) if error else 0) > errorln:
