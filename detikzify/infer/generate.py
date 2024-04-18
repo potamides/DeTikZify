@@ -10,7 +10,7 @@ import torch
 from torchmetrics import Metric
 from transformers import StoppingCriteriaList
 
-from ..evaluate.patchsim import PatchSim
+from ..evaluate.imagesim import ImageSim
 from ..mcts.montecarlo import MonteCarlo
 from ..mcts.node import Node
 from ..util import (
@@ -312,9 +312,9 @@ class DetikzifyPipeline:
         self.model = model
         self.tokenizer = tokenizer
 
-        if metric == "model":
-            self.metric = PatchSim.from_detikzify(model, feature_layer=-3, sync_on_compute=False)
-        elif metric == "fast":
+        if metric == "model": # SelfSim
+            self.metric = ImageSim.from_detikzify(model, sync_on_compute=False)
+        elif metric == "fast": # Compiler Diagnostics
             self.metric = None
         else:
             self.metric = metric

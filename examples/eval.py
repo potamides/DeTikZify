@@ -22,7 +22,7 @@ from transformers.utils import is_flash_attn_2_available
 from detikzify.evaluate import (
     CrystalBLEU,
     KernelInceptionDistance,
-    PatchSim,
+    ImageSim,
     TexEditDistance,
     DreamSim,
 )
@@ -135,8 +135,8 @@ def predict(model_name, base_model, testset, cache_file=None, timeout=None, key=
 def load_metrics(trainset, measure_throughput=False, **kwargs):
     bleu = CrystalBLEU(corpus=trainset, **kwargs)
     eed = TexEditDistance(**kwargs)
-    emdsim = PatchSim(**kwargs)
-    poolsim = PatchSim(pool=True, **kwargs)
+    emdsim = ImageSim(mode="emd", **kwargs)
+    cossim = ImageSim(**kwargs)
     dreamsim = DreamSim(**kwargs)
     kid = KernelInceptionDistance(**kwargs)
 
@@ -163,7 +163,7 @@ def load_metrics(trainset, measure_throughput=False, **kwargs):
             bleu: partial(bleu.update, list_of_references=ref_code, hypotheses=pred_code),
             eed: partial(eed.update, target=ref_code, preds=pred_code),
             emdsim: lambda: [emdsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_image)],
-            poolsim: lambda: [poolsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_image)],
+            cossim: lambda: [cossim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_image)],
             dreamsim: lambda: [dreamsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_image)],
             kid: lambda: [(kid.update(img1, True), kid.update(img2, False)) for img1, img2 in zip(ref_image, pred_image)],
         }

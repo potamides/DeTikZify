@@ -1,6 +1,6 @@
 from functools import cached_property
 from math import tanh
-from typing import List
+from typing import List, Literal
 
 from PIL import Image
 from numpy import clip
@@ -16,26 +16,26 @@ from transformers import PreTrainedModel
 
 from ..util import expand, infer_device, load
 
-class PatchSim(Metric):
-    """Image-to-image similarity using image patches"""
+class ImageSim(Metric):
+    """Perceptual image similarity using visual encoders."""
 
     higher_is_better = True
 
     def __init__(
         self,
         model_name: str = "vit_so400m_patch14_siglip_384.webli",
-        feature_layer: int = -3,
+        mode: Literal["cos", "emd"] = "cos",
+        emd_layer: int = -3,
         preprocess: bool = True,
-        pool: bool = False,
         device: str = infer_device(),
         dtype=torch.bfloat16 if is_cuda_available() and is_bf16_supported() else torch.float16,
         **kwargs
     ):
         super().__init__(**kwargs)
         self.model_name = model_name
-        self.feature_layer = feature_layer
+        self.emd_layer = emd_layer
         self.preprocess = preprocess
-        self.pool = pool
+        self.mode = mode
         self._device = device
         self.dtype = dtype
 
@@ -43,7 +43,7 @@ class PatchSim(Metric):
         self.add_state("n_samples", torch.tensor(0, dtype=torch.long), dist_reduce_fx="sum")
 
     def __str__(self):
-        return f"{self.__class__.__name__} ({'Pool' if self.pool else 'EMD'})"
+        return self.__class__.__name__ + ("(EMD)" if self.mode == "emd" else "")
 
     @cached_property
     def model(self):
@@ -59,15 +59,15 @@ class PatchSim(Metric):
     @classmethod
     def from_detikzify(cls, model: PreTrainedModel, *args, **kwargs):
         derived_kwargs = dict(
-            feature_layer = model.config.feature_layer,
+            emd_layer = model.config.feature_layer,
             model_name = model.config.vision_config['architecture'],
             device = model.device,
             dtype = model.dtype,
         )
 
-        patchsim = cls(*args, **(derived_kwargs | kwargs))
-        patchsim.model = model.get_model().vision_tower
-        return patchsim
+        imagesim = cls(*args, **(derived_kwargs | kwargs))
+        imagesim.model = model.get_model().vision_tower
+        return imagesim
 
     def get_vision_features(self, image: Image.Image | str):
         image = load(image)
@@ -76,10 +76,10 @@ class PatchSim(Metric):
 
         with torch.inference_mode():
             pixels = self.processor(image).unsqueeze(0).to(self.device, self.dtype) # type: ignore
-            if self.pool:
+            if self.mode == "cos":
                 return self.model(pixels)[0]
             else:
-                layers = [clip(self.feature_layer, -(depth:=len(self.model.blocks)), depth-1) % depth]
+                layers = [clip(self.emd_layer, -(depth:=len(self.model.blocks)), depth-1) % depth]
                 return self.model.get_intermediate_layers(pixels, n=layers, norm=True)[0][0]
 
     def get_similarity(self, img1: Image.Image | str, img2: Image.Image | str):

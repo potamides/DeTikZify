@@ -1,9 +1,9 @@
 from importlib import import_module
 from typing import Any
 
-from .patchsim import * # this metric is used by MCTS, so it is not optional
+from .imagesim import * # this metric is used by MCTS, so it is not optional
 
-__all__ = ["PatchSim", "CrystalBLEU", "KernelInceptionDistance", "TexEditDistance", "DreamSim"] # type: ignore
+__all__ = ["ImageSim", "CrystalBLEU", "KernelInceptionDistance", "TexEditDistance", "DreamSim"] # type: ignore
 
 # lazy import optional metrics (https://peps.python.org/pep-0562/)
 def __getattr__(name) -> Any:
