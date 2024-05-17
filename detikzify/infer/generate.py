@@ -137,6 +137,7 @@ class DetikzifyGenerator:
         compile_timeout: Optional[int] = 60,
         mcts_timeout: Optional[int] = None,
         streamer: Optional[BaseStreamer] = None,
+        strict: bool = False,
         **gen_kwargs,
     ):
         self.newline_id = tokenizer.text("\n", add_special_tokens=False)["input_ids"][-1]
@@ -149,6 +150,7 @@ class DetikzifyGenerator:
         self.compile_timeout = compile_timeout
         self.mcts_timeout = mcts_timeout
         self.streamer = streamer
+        self.strict = strict
         self.gen_kwargs = gen_kwargs
 
         self.solution = deque(maxlen=1)
@@ -263,7 +265,7 @@ class DetikzifyGenerator:
         tikz = self.decode((new_nodes or [node])[-1].token_ids)
         skip_idx = round(sqrt(len(new_nodes)))
 
-        if scorable:=tikz.is_rasterizable:
+        if scorable:=(not tikz.compiled_with_errors if self.strict else tikz.is_rasterizable):
             for new_node in new_nodes[:skip_idx]:
                 node.add_child(node:=new_node)
         else:
@@ -360,6 +362,7 @@ class DetikzifyPipeline:
         preprocess: bool = True,
         expansions: Optional[Numeric] = None,
         timeout: Optional[int] = None,
+        strict: bool = False, # if True, treat recoverable errors same as fatal errors when computing scores
         **gen_kwargs,
     ) -> Generator[Tuple[Numeric, TikzDocument], None, None]:
         """
@@ -380,6 +383,7 @@ class DetikzifyPipeline:
             tokenizer=self.tokenizer,
             metric=self.metric,
             mcts_timeout=timeout or None,
+            strict=strict,
             image=self.load(image, preprocess=preprocess),
             **self.gen_kwargs,
             **gen_kwargs
