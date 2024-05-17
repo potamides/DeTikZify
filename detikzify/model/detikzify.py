@@ -60,21 +60,20 @@ class DetikzifyModel(LlamaModel):
     def __init__(self, config: LlamaConfig):
         super(DetikzifyModel, self).__init__(config)
 
-        if hasattr(config, "vision_tower"):
-            self.vision_tower = create_vision_model(config.vision_tower, pretrained=True)
-
         if hasattr(config, "use_mm_proj"):
             self.mm_projector = nn.Linear(config.mm_hidden_size, config.hidden_size)
 
-    @property
-    @torch._dynamo.disable(recursive=False)
-    def vision_tower(self):
-        return self._hidden_vision_tower[0]
+    def set_vision_tower(self, vision_tower):
+        # HACK: wrap in list so that vision model does not count as a parameter
+        setattr(self, "_hidden_vision_tower", [vision_tower])
 
-    @vision_tower.setter
-    def vision_tower(self, vision_tower):
-        # HACK: wrap in list to not make vision model count as a parameter
-        self._hidden_vision_tower = [vision_tower]
+    @torch._dynamo.disable(recursive=False)
+    def get_vision_tower(self):
+        vision_tower = getattr(self, "_hidden_vision_tower", [None])[0]
+        if not vision_tower and hasattr(self.config, "vision_tower"):
+            self.set_vision_tower(create_vision_model(self.config.vision_tower, pretrained=True))
+            return self.get_vision_tower()
+        return vision_tower
 
     def initialize_vision_modules(
         self,
@@ -84,28 +83,27 @@ class DetikzifyModel(LlamaModel):
         feature_layer=-1,
         pretrain_mm_mlp_adapter=None,
     ):
-        if not hasattr(self, 'vision_tower'):
-            self.vision_tower = create_vision_model(vision_tower, pretrained=True)
-        self.vision_tower = self.vision_tower.to(self.device, self.dtype).eval().requires_grad_(False)
+        self.set_vision_tower(create_vision_model(vision_tower, pretrained=True))
+        self.set_vision_tower(self.get_vision_tower().to(self.device, self.dtype).eval().requires_grad_(False))
 
         try: # if we use accelerate, exclude the vision_tower as it doesn't seem to work well with timm
             from accelerate.hooks import remove_hook_from_module
-            self.vision_tower = remove_hook_from_module(self.vision_tower, True)
+            self.set_vision_tower(remove_hook_from_module(self.get_vision_tower(), True))
         except ImportError:
             pass
 
-        vision_config = self.vision_tower.pretrained_cfg
+        vision_config = self.get_vision_tower().pretrained_cfg
         data_config = resolve_data_config(vision_config) | dict(crop_pct=1) # we don't want a resize crop
         processor = create_transform(**data_config, is_training=False)
 
         self.config.use_mm_proj = True
         self.config.vision_tower = vision_tower
-        self.config.mm_hidden_size = self.vision_tower.embed_dim * concat_patches
+        self.config.mm_hidden_size = self.get_vision_tower().embed_dim * concat_patches
         self.config.patch_token_id = patch_token_id
         self.config.concat_patches = concat_patches
-        self.config.feature_layer = int(clip(feature_layer, -(depth:=len(self.vision_tower.blocks)), depth-1) % depth)
+        self.config.feature_layer = int(clip(feature_layer, -(depth:=len(self.get_vision_tower().blocks)), depth-1) % depth)
         self.config.vision_config = vision_config
-        self.config.num_patches = self.vision_tower.patch_embed.num_patches // concat_patches
+        self.config.num_patches = self.get_vision_tower().patch_embed.num_patches // concat_patches
 
         if not hasattr(self, 'mm_projector'):
             self.mm_projector = nn.Linear(
@@ -127,14 +125,14 @@ class DetikzifyModel(LlamaModel):
     # https://stackoverflow.com/a/57208704
     def _apply(self, fn):
         super()._apply(fn)
-        if hasattr(self, "vision_tower"):
-            self.vision_tower = self.vision_tower._apply(fn)
-            return self
+        if vision_tower:=self.get_vision_tower():
+            self.set_vision_tower(vision_tower._apply(fn))
+        return self
 
     def get_vision_features(self, images):
         concat, n_patch, layer = self.config.concat_patches, self.config.num_patches, self.config.feature_layer
         pixels = getattr(images, "pixel_values", images)
-        feats = self.vision_tower.get_intermediate_layers(pixels, n=[layer], norm=True)[0]
+        feats = self.get_vision_tower().get_intermediate_layers(pixels, n=[layer], norm=True)[0]
         # in case the number of feature vectors is not divisible by the number
         # of patches we want to concatenate, we remove the first feature(s)
         return feats[:, -n_patch * concat:].reshape(-1, n_patch, feats.shape[-1] * concat)
@@ -160,8 +158,7 @@ class DetikzifyModel(LlamaModel):
         if inputs_embeds is None:
             inputs_embeds = self.embed_tokens(input_ids)
 
-        vision_tower = getattr(self, 'vision_tower')
-        if vision_tower is not None and (input_ids.shape[1] != 1 or self.training) and images is not None:
+        if self.get_vision_tower() and (input_ids.shape[1] != 1 or self.training) and images is not None:
             with torch.no_grad():
                 if self.is_tensor(images):
                     image_features = self.get_vision_features(images)

@@ -66,7 +66,7 @@ class ImageSim(Metric):
         )
 
         imagesim = cls(*args, **(derived_kwargs | kwargs))
-        imagesim.model = model.get_model().vision_tower
+        imagesim.model = model.get_model().get_vision_tower()
         return imagesim
 
     def get_vision_features(self, image: Image.Image | str):
