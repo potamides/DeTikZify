@@ -6,7 +6,6 @@ from PIL import UnidentifiedImageError
 
 from detikzify.infer import DetikzifyPipeline
 from detikzify.model import load
-from detikzify.util import infer_device
 from transformers import set_seed, TextStreamer
 
 try:
@@ -29,8 +28,9 @@ if __name__ == "__main__":
     set_seed(0)
     model, tokenizer = load(parse_args().model_name_or_path)
     pipe = DetikzifyPipeline(
-        model=model.to(infer_device()), # type: ignore
+        model=model,
         tokenizer=tokenizer,
+        device_map="auto",
         streamer=TextStreamer(
             tokenizer=tokenizer.text,
             skip_prompt=True,
