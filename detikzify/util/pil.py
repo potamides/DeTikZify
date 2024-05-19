@@ -43,5 +43,7 @@ def expand(raw, size, trim=False, border="white"):
 
 def load(image: Image.Image | str, bg="white"):
     if isinstance(image, str):
-        image = Image.open(requests.get(image, stream=True).raw if is_remote_url(image) else image)
+        # https://stackoverflow.com/a/69791396
+        headers = {'user-agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:68.0) Gecko/20100101 Firefox/68.0'}
+        image = Image.open(requests.get(image, stream=True, headers=headers).raw if is_remote_url(image) else image)
     return _postprocess(*_preprocess(image, bg))
