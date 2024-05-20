@@ -304,8 +304,9 @@ class DetikzifyPipeline:
         self,
         model,
         tokenizer,
-        temperature: float = 0.7,
-        top_p: float = 0.9,
+        # hyperparams based on "a systematic evaluation of large language models of code"
+        temperature: float = 0.8,
+        top_p: float = 0.95,
         top_k: int = 0,
         compile_timeout: Optional[int] = 60, # same as old overleaf compile timeout
         metric: Union[Literal["model", "fast"], Metric]  = "model",

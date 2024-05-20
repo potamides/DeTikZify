@@ -230,8 +230,8 @@ def build_ui(
                 interactive=not lock,
             )
             with gr.Accordion(label="Advanced"):
-                temperature = gr.Slider(minimum=0, maximum=2, step=0.1, value=0.7, label="Temperature")
-                top_p = gr.Slider(minimum=0, maximum=1, step=0.05, value=0.9, label="Top-P")
+                temperature = gr.Slider(minimum=0, maximum=2, step=0.1, value=0.8, label="Temperature")
+                top_p = gr.Slider(minimum=0, maximum=1, step=0.05, value=0.95, label="Top-P")
                 top_k = gr.Slider(minimum=0, maximum=100, step=5, value=0, label="Top-K")
                 preprocess = gr.Checkbox(value=True, label="Preprocess image", info="Trim whitespace and pad image to square.")
 
