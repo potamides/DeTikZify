@@ -41,3 +41,10 @@ and top-p (nucleus) values force DeTi*k*Zify to generate Ti*k*Z programs that
 follow the input images more closely, at the expense of generating more
 compile-time errors. We pick sensible defaults that aim to balance these two
 aspects, but you might want to try to tune these parameters yourself.
+
+**External Graphics** In DaTi*k*Z<sub>v2</sub>, we replace any externally
+included graphics in the `tikzpicture`  environments with the [example
+image](https://mirrors.ctan.org/macros/latex/contrib/mwe/example-image.pdf)
+placeholder from the [mwe](http://www.ctan.org/pkg/mwe) package. So if you want
+to generate code with placeholders for your own external graphics, just draw
+that example image.
