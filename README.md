@@ -5,12 +5,12 @@ Creating high-quality scientific figures can be time-consuming and challenging,
 even though sketching ideas on paper is relatively easy. Furthermore,
 recreating existing figures that are not stored in formats preserving semantic
 information is equally complex. To tackle this problem, we introduce
-DeTi*k*Zify, a novel multimodal language model that automatically synthesizes
-scientific figures as semantics-preserving
-[Ti*k*Z](https://github.com/pgf-tikz/pgf) graphics programs based on sketches
-and existing figures. We also introduce an MCTS-based inference algorithm that
-enables DeTi*k*Zify to iteratively refine its outputs without the need for
-additional training.
+[DeTi*k*Zify](https://github.com/potamides/DeTikZify), a novel multimodal
+language model that automatically synthesizes scientific figures as
+semantics-preserving [Ti*k*Z](https://github.com/pgf-tikz/pgf) graphics
+programs based on sketches and existing figures. We also introduce an
+MCTS-based inference algorithm that enables DeTi*k*Zify to iteratively refine
+its outputs without the need for additional training.
 
 > [!NOTE]
 > We are currently working on a publicly accessible web demo. If you cannot run
@@ -72,9 +72,8 @@ For interactive use and additional usage tips, we recommend checking out our
 [web UI](detikzify/webui), which can be started form the command line (use
 `--help` for a list of all options):
 ```sh
-python -m detikzify.webui
+python -m detikzify.webui --light
 ```
-However, please note that the web UI does not yet support MCTS-based inference.
 More involved examples, for example for evaluation and training, can be found
 in the [examples](examples) folder.
 

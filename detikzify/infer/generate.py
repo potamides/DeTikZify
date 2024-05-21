@@ -43,13 +43,18 @@ class NodeState:
 class WideNode(Node):
     state: NodeState
 
-    def __init__(self, *args, is_widen_node=False, **kwargs):
+    def __init__(self, *args, exploration=0.6, is_widen_node=False, **kwargs):
         super().__init__(NodeState(*args, **kwargs))
-        self.discovery_factor = 0.6
+        self.discovery_factor = exploration
         self.is_widen_node = is_widen_node
         self.update_policy_value(1.0)
         if not is_widen_node:
-            self.add_child(WideNode(*args, is_widen_node=not is_widen_node, **kwargs))
+            self.add_child(WideNode(
+                *args,
+                exploration=exploration,
+                is_widen_node=not is_widen_node,
+                **kwargs
+            ))
 
     def add_child(self, child):
         self.expanded = self.expanded or not child.is_widen_node
@@ -137,7 +142,8 @@ class DetikzifyGenerator:
         compile_timeout: Optional[int] = 60,
         mcts_timeout: Optional[int] = None,
         streamer: Optional[BaseStreamer] = None,
-        strict: bool = False,
+        exploration: float = 0.6, # exploration coefficient
+        strict: bool = False, # if True, treat recoverable errors same as fatal errors when computing scores
         **gen_kwargs,
     ):
         self.newline_id = tokenizer.text("\n", add_special_tokens=False)["input_ids"][-1]
@@ -150,6 +156,7 @@ class DetikzifyGenerator:
         self.compile_timeout = compile_timeout
         self.mcts_timeout = mcts_timeout
         self.streamer = streamer
+        self.exploration = exploration
         self.strict = strict
         self.gen_kwargs = gen_kwargs
 
@@ -163,7 +170,8 @@ class DetikzifyGenerator:
                     tokenizer.text.convert_ids_to_tokens(model.config.patch_token_id) * model.config.num_patches,
                     add_special_tokens=False,
                     return_tensors="pt",
-                ).input_ids.to(model.device).squeeze()
+                ).input_ids.to(model.device).squeeze(),
+                exploration=self.exploration
             )
         )
 
@@ -252,7 +260,7 @@ class DetikzifyGenerator:
     def child_finder(self, node: WideNode, montecarlo: MonteCarlo):
         new_nodes = list()
         for new_state in (rollout:=self.rollout(node.token_ids)):
-            if (new_node:=WideNode(new_state)).state in self.failed_rollouts:
+            if (new_node:=WideNode(new_state, exploration=self.exploration)).state in self.failed_rollouts:
                 new_nodes.extend(self.failed_rollouts[new_node.state])
                 rollout.close()
                 break
@@ -363,7 +371,6 @@ class DetikzifyPipeline:
         preprocess: bool = True,
         expansions: Optional[Numeric] = None,
         timeout: Optional[int] = None,
-        strict: bool = False, # if True, treat recoverable errors same as fatal errors when computing scores
         **gen_kwargs,
     ) -> Generator[Tuple[Numeric, TikzDocument], None, None]:
         """
@@ -384,7 +391,6 @@ class DetikzifyPipeline:
             tokenizer=self.tokenizer,
             metric=self.metric,
             mcts_timeout=timeout or None,
-            strict=strict,
             image=self.load(image, preprocess=preprocess),
             **self.gen_kwargs,
             **gen_kwargs
