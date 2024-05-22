@@ -49,9 +49,9 @@ def load(base_model, vision_tower="vit_so400m_patch14_siglip_384.webli", pretrai
         pretrain_mm_mlp_adapter = DownloadManager().download(pretrain_mm_mlp_adapter)
 
     processor = model.get_model().initialize_vision_modules( # type: ignore
-        vision_tower=vision_tower,
         patch_token_id=tokenizer.bos_token_id,
         pretrain_mm_mlp_adapter=pretrain_mm_mlp_adapter,
+        vision_tower=getattr(model.config, "vision_tower", vision_tower), # type: ignore
         feature_layer=getattr(model.config, "feature_layer", -1), # type: ignore
         concat_patches=getattr(model.config, "concat_patches", 2) # type: ignore
     )

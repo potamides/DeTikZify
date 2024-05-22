@@ -69,11 +69,7 @@ class DetikzifyModel(LlamaModel):
 
     @torch._dynamo.disable(recursive=False)
     def get_vision_tower(self):
-        vision_tower = getattr(self, "_hidden_vision_tower", [None])[0]
-        if not vision_tower and hasattr(self.config, "vision_tower"):
-            self.set_vision_tower(create_vision_model(self.config.vision_tower, pretrained=True))
-            return self.get_vision_tower()
-        return vision_tower
+        return getattr(self, "_hidden_vision_tower", [None])[0]
 
     def initialize_vision_modules(
         self,
@@ -85,12 +81,6 @@ class DetikzifyModel(LlamaModel):
     ):
         self.set_vision_tower(create_vision_model(vision_tower, pretrained=True))
         self.set_vision_tower(self.get_vision_tower().to(self.device, self.dtype).eval().requires_grad_(False))
-
-        try: # if we use accelerate, exclude the vision_tower as it doesn't seem to work well with timm
-            from accelerate.hooks import remove_hook_from_module
-            self.set_vision_tower(remove_hook_from_module(self.get_vision_tower(), True))
-        except ImportError:
-            pass
 
         vision_config = self.get_vision_tower().pretrained_cfg
         data_config = resolve_data_config(vision_config) | dict(crop_pct=1) # we don't want a resize crop
