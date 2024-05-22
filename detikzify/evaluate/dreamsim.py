@@ -30,7 +30,7 @@ class DreamSim(Metric):
         self.pretrained = pretrained
         self.normalize = normalize
         self._device = device
-        self.dtype = dtype
+        self.set_dtype(dtype)
         self.preprocess = preprocess
 
         self.add_state("score", torch.tensor(0.0, dtype=torch.float64), dist_reduce_fx="sum")

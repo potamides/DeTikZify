@@ -37,7 +37,7 @@ class ImageSim(Metric):
         self.preprocess = preprocess
         self.mode = mode
         self._device = device
-        self.dtype = dtype
+        self.set_dtype(dtype)
 
         self.add_state("score", torch.tensor(0.0, dtype=torch.float64), dist_reduce_fx="sum")
         self.add_state("n_samples", torch.tensor(0, dtype=torch.long), dist_reduce_fx="sum")
