@@ -13,13 +13,6 @@ programs based on sketches and existing figures. We also introduce an
 MCTS-based inference algorithm that enables DeTi*k*Zify to iteratively refine
 its outputs without the need for additional training.
 
-> [!TIP]
-> If you cannot run inference on your own hardware, please check out our demo
-> on [Google
-> Colab](https://colab.research.google.com/drive/1hPWqucbPGTavNlYvOBvSNBAwdcPZKe8F).
-> Note that setting up the environment can take a while and that the free tier
-> is only suitable for inference of the 1b models.
-
 ## Installation
 The Python package of DeTi*k*Zify can be easily installed using
 [pip](https://pip.pypa.io/en/stable):
@@ -37,6 +30,16 @@ In addition, DeTi*k*Zify requires a full
 [ghostscript](https://www.ghostscript.com), and,
 [poppler](https://poppler.freedesktop.org) which you have to install through
 your package manager or via other means.
+
+> [!TIP]
+> If you encounter difficulties with installation and inference on your own
+> hardware, consider using our demo on [Google
+> Colab](https://colab.research.google.com/drive/1hPWqucbPGTavNlYvOBvSNBAwdcPZKe8F).
+> Please note, however, that setting up the environment may take some time, and
+> the free tier is only applicable for inference of the 1b models. For a more
+> convenient experience and access to all models, consider duplicating our
+> [Hugging Face Space](https://huggingface.co/spaces/nllg/DeTikZify) with a
+> paid private GPU runtime.
 
 ## Usage
 If all required dependencies are installed, the full range of DeTi*k*Zify
@@ -73,7 +76,7 @@ best = sorted(figs, key=itemgetter(0))[-1][1]
 best.save("fig.tex")
 ```
 For interactive use and additional usage tips, we recommend checking out our
-[web UI](detikzify/webui), which can be started form the command line (use
+[web UI](detikzify/webui), which can be started from the command line (use
 `--help` for a list of all options):
 ```sh
 python -m detikzify.webui --light
