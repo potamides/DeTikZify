@@ -26,11 +26,10 @@ def parse_args():
 
 if __name__ == "__main__":
     set_seed(0)
-    model, tokenizer = load(parse_args().model_name_or_path)
+    model, tokenizer = load(parse_args().model_name_or_path, device_map="auto")
     pipe = DetikzifyPipeline(
         model=model,
         tokenizer=tokenizer,
-        device_map="auto",
         streamer=TextStreamer(
             tokenizer=tokenizer.text,
             skip_prompt=True,
