@@ -231,12 +231,12 @@ def build_ui(
                     clear_btn.add([stream_code, gallery_code, result_image, result_gallery])
         with gr.Accordion(label="Settings", open=False):
             gr.Markdown(
-                "For additional information and usage tips check out our [paper](TODO) and the "
-                "[documentation](https://github.com/potamides/DeTikZify/tree/main/detikzify/webui)."
+                "For additional information and usage tips check out our [paper](https://arxiv.org/abs/2405.15306) "
+                "and the [documentation](https://github.com/potamides/DeTikZify/tree/main/detikzify/webui)."
             )
             base_model_info="Which DeTikZify model to use for inference.",
             base_model = gr.Dropdown(
-                label="Base Model",
+                label="Base model",
                 allow_custom_value=True,
                 info=f"{lock_reason} {base_model_info}" if lock else base_model_info, # type: ignore
                 choices=list(({model: model} | MODELS).items()),
@@ -315,7 +315,7 @@ def build_ui(
         # generate and compile TikZ
         generate_event = run_btn.click(
             check_inputs,
-            inputs=[sketchpad],
+            inputs=sketchpad,
             #show_progress="hidden",
             queue=False
         ).success(

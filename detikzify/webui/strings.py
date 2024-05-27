@@ -4,6 +4,9 @@ BANNER = '''\
 <h1>DeTi<i>k</i>Zify: Synthesizing Graphics Programs for Scientific Figures and Sketches with Ti<i>k</i>Z</h1>
 
 <p>
+  <a style="display:inline-block" href="https://arxiv.org/abs/2405.15306">
+    <img src="https://img.shields.io/badge/View%20on%20arXiv-B31B1B?logo=arxiv&labelColor=gray" alt="View on arXiv">
+  </a>
   <a style="display:inline-block" href="https://github.com/potamides/DeTikZify">
     <img src="https://img.shields.io/badge/View%20on%20GitHub-green?logo=github&labelColor=gray" alt="View on GitHub">
   </a>
