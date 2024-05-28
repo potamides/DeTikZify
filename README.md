@@ -14,6 +14,8 @@ programs based on sketches and existing figures. We also introduce an
 MCTS-based inference algorithm that enables DeTi*k*Zify to iteratively refine
 its outputs without the need for additional training.
 
+https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3ccb65880cd3
+
 ## Installation
 The Python package of DeTi*k*Zify can be easily installed using
 [pip](https://pip.pypa.io/en/stable):
