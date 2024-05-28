@@ -231,8 +231,9 @@ def build_ui(
                     clear_btn.add([stream_code, gallery_code, result_image, result_gallery])
         with gr.Accordion(label="Settings", open=False):
             gr.Markdown(
-                "For additional information and usage tips check out our [paper](https://arxiv.org/abs/2405.15306) "
-                "and the [documentation](https://github.com/potamides/DeTikZify/tree/main/detikzify/webui)."
+                "For additional information and usage tips check out our [paper](https://arxiv.org/abs/2405.15306), "
+                "[documentation](https://github.com/potamides/DeTikZify/tree/main/detikzify/webui), and [demo "
+                "video](https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3ccb65880cd3)."
             )
             base_model_info="Which DeTikZify model to use for inference.",
             base_model = gr.Dropdown(
