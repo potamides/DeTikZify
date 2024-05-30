@@ -2,7 +2,7 @@ from queue import Queue
 from typing import Optional
 
 from transformers import StoppingCriteria
-from transformers.generation.streamers import BaseStreamer
+from transformers.generation import streamers
 
 class ExplicitAbort(StoppingCriteria):
     """
@@ -18,7 +18,7 @@ class ExplicitAbort(StoppingCriteria):
     def abort(self):
         self.should_stop = True
 
-class TokenStreamer(BaseStreamer):
+class TokenStreamer(streamers.BaseStreamer):
     """
     Stream raw token ids (i.e., not decoded strings).
     """
@@ -46,6 +46,9 @@ class TokenStreamer(BaseStreamer):
         self.next_tokens_are_prompt = True
         self.token_queue.put(self.stop_signal, timeout=self.timeout)
 
+    def propagate_error(self, exc):
+        self.token_queue.put(exc, timeout=self.timeout)
+
     def __iter__(self):
         return self
 
@@ -53,10 +56,25 @@ class TokenStreamer(BaseStreamer):
         value = self.token_queue.get(timeout=self.timeout)
         if value == self.stop_signal:
             raise StopIteration()
+        elif isinstance(value, BaseException):
+            raise value
         else:
             return value
 
-class StreamerList(list, BaseStreamer):
+class TextIteratorStreamer(streamers.TextIteratorStreamer):
+    def propagate_error(self, exc):
+        self.text_queue.put(exc, timeout=self.timeout)
+
+    def __next__(self):
+        value = self.text_queue.get(timeout=self.timeout)
+        if value == self.stop_signal:
+            raise StopIteration()
+        elif isinstance(value, BaseException):
+            raise value
+        else:
+            return value
+
+class StreamerList(list, streamers.BaseStreamer):
     """
     Similar to StoppingCriteriaList, only for Streamers.
     """

@@ -9,19 +9,12 @@ from PIL import Image
 import torch
 from torchmetrics import Metric
 from transformers import StoppingCriteriaList
+from transformers.generation.streamers import BaseStreamer
 
 from ..evaluate.imagesim import ImageSim
 from ..mcts.montecarlo import MonteCarlo
 from ..mcts.node import Node
-from ..util import (
-    BaseStreamer,
-    ExplicitAbort,
-    StreamerList,
-    TokenStreamer,
-    cast_cache,
-    expand,
-    load,
-)
+from ..util import ExplicitAbort, StreamerList, TokenStreamer, cast_cache, expand, load
 from .tikz import TikzDocument
 
 Numeric = Union[int, float]
@@ -212,6 +205,7 @@ class DetikzifyGenerator:
         rollout_control, streamer = ExplicitAbort(), TokenStreamer()
         async_result = self.thread.apply_async(
             func=self.generate,
+            error_callback=streamer.propagate_error,
             args=[input_ids],
             kwds=dict(
                 stopping_criteria=StoppingCriteriaList([rollout_control]),

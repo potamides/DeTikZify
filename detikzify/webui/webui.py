@@ -12,11 +12,11 @@ from PIL import Image
 import gradio as gr
 from torch import bfloat16, float16
 from torch.cuda import is_available as is_cuda_available, is_bf16_supported
-from transformers import TextIteratorStreamer
 from transformers.utils import is_flash_attn_2_available
 
 from ..infer import DetikzifyPipeline, TikzDocument
 from ..model import load
+from ..util import TextIteratorStreamer
 from .strings import ALGORITHMS, BANNER, CSS, GALLERY_DESELECT_HACK, MODELS
 
 
@@ -132,7 +132,10 @@ def inference(
             # we have to implement our own timer since we use threading and would run into a deadlock otherwise
             tikzdocs, start = MctsOutputs(build_dir=tmpdir), time()
             while True:
-                code, async_result = "", thread.apply_async(func=lambda: next(iterator))
+                code, async_result = "", thread.apply_async(
+                    func=lambda: next(iterator),
+                    error_callback=streamer.propagate_error
+                )
                 for new_text in streamer:
                     code += new_text
                     yield code, tikzdocs.programs, None, tikzdocs.images, gr.Tabs()
@@ -145,6 +148,7 @@ def inference(
         else: # sampling
             code, async_result = "", thread.apply_async(
                 func=generate.sample,
+                error_callback=streamer.propagate_error,
                 kwds=dict(image=image['composite'], preprocess=preprocess)
             )
             for new_text in streamer:
