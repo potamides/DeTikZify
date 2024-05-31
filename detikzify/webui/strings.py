@@ -43,7 +43,7 @@ CSS = """
     }
     .output-code {
         flex-grow: 1;
-        height: 50vh;
+        height: 0vh;
         scrollbar-width: thin !important;
     }
     .output-code .hide {
@@ -57,7 +57,7 @@ CSS = """
     }
     .output-image {
         flex-grow: 1;
-        height: 50vh;
+        height: 0vh;
         overflow-y: auto !important;
         scrollbar-width: thin !important;
     }
