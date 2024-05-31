@@ -86,6 +86,8 @@ class ImageSim(Metric):
         img1_feats = self.get_vision_features(img1)
         img2_feats = self.get_vision_features(img2)
 
+        if img1_feats.is_mps: # mps backend does not support dtype double
+            img1_feats, img2_feats = img1_feats.cpu(), img2_feats.cpu()
         if img1_feats.ndim > 1:
             dists = 1 - pairwise_cosine_similarity(img1_feats.double(), img2_feats.double()).cpu().numpy()
             return 2 * tanh(-emd2(M=dists, a=list(), b=list())) + 1 # type: ignore
