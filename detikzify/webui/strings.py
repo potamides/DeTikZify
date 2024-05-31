@@ -68,6 +68,9 @@ CSS = """
     .output-image .thumbnail-item img {
         object-fit: contain;
     }
+    .output-image .grid-wrap.fixed-height {
+        max-height: 100% !important;
+    }
     .outputs .tabs {
         display: flex;
         flex-direction: column;
