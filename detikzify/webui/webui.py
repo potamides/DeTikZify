@@ -239,7 +239,7 @@ def build_ui(
                 "[documentation](https://github.com/potamides/DeTikZify/tree/main/detikzify/webui), and [demo "
                 "video](https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3ccb65880cd3)."
             )
-            base_model_info="Which DeTikZify model to use for inference.",
+            base_model_info="Which DeTikZify model to use for inference."
             base_model = gr.Dropdown(
                 label="Base model",
                 allow_custom_value=True,
@@ -248,19 +248,17 @@ def build_ui(
                 value=MODELS.get(model, model),
                 interactive=not lock,
             )
-            algorithm_info = (
-                'Whether to use Monte Caro Tree Search (MCTS) or regular sampling-based inference. '
-                'Sampling generates one single output image. '
-                'MCTS iteratively refines outputs and sorts them in the "Compiled Image" tab based on their score. '
-                'If you then click on an image preview its code is restored in the "TikZ Code" tab. '
-                'Close the preview to again display the code stream of the current iteration.'
-            )
             algorithm_radio = gr.Radio(
                 choices=[(v, k) for k, v in ALGORITHMS.items()],
                 value=algorithm,
                 label="Inference algoritm",
-                info=f"{lock_reason} {algorithm_info}" if lock else algorithm_info,
-                interactive=not lock,
+                info=(
+                    'Whether to use Monte Caro Tree Search (MCTS) or regular sampling-based inference. '
+                    'Sampling generates one single output image. '
+                    'MCTS iteratively refines outputs and sorts them in the "Compiled Image" tab based on their score. '
+                    'If you then click on an image preview its code is restored in the "TikZ Code" tab. '
+                    'Close the preview to again display the code stream of the current iteration.'
+                )
             )
             with gr.Accordion(label="Advanced"):
                 temperature = gr.Slider(
