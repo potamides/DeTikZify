@@ -20,13 +20,15 @@ https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3
 
 > [!TIP]
 > If you encounter difficulties with installation and inference on your own
-> hardware, consider duplicating our [Hugging Face
-> Space](https://huggingface.co/spaces/nllg/DeTikZify) with a paid private GPU
-> runtime for a more convenient experience. You can also check out our demo on
-> [Google
-Colab](https://colab.research.google.com/drive/1hPWqucbPGTavNlYvOBvSNBAwdcPZKe8F),
-but setting up the environment there could take some time and the free tier is
-only applicable for inference of the 1b models.
+> hardware, consider visiting our [Hugging Face
+> Space](https://huggingface.co/spaces/nllg/DeTikZify). Should you experience
+> long wait times, you have the option to
+> [duplicate](https://huggingface.co/spaces/nllg/DeTikZify?duplicate=true) it
+> with a paid private GPU runtime for a more seamless experience. Additionally,
+> you can try our demo on [Google
+> Colab](https://colab.research.google.com/drive/1hPWqucbPGTavNlYvOBvSNBAwdcPZKe8F).
+> However, setting up the environment there might take some time, and the free
+> tier only supports inference for the 1b models.
 
 The Python package of DeTi*k*Zify can be easily installed using
 [pip](https://pip.pypa.io/en/stable):
