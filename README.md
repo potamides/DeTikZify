@@ -21,8 +21,9 @@ https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3
 > [!TIP]
 > If you encounter difficulties with installation and inference on your own
 > hardware, consider visiting our [Hugging Face
-> Space](https://huggingface.co/spaces/nllg/DeTikZify). Should you experience
-> long wait times, you have the option to
+> Space](https://huggingface.co/spaces/nllg/DeTikZify) (if the space is
+> restarting the first run might take 10-15 minutes to download and load the
+> model). Should you experience long queues, you have the option to
 > [duplicate](https://huggingface.co/spaces/nllg/DeTikZify?duplicate=true) it
 > with a paid private GPU runtime for a more seamless experience. Additionally,
 > you can try our demo on [Google
