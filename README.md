@@ -17,6 +17,17 @@ its outputs without the need for additional training.
 https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3ccb65880cd3
 
 ## Installation
+
+> [!TIP]
+> If you encounter difficulties with installation and inference on your own
+> hardware, consider duplicating our [Hugging Face
+> Space](https://huggingface.co/spaces/nllg/DeTikZify) with a paid private GPU
+> runtime for a more convenient experience. You can also check out our demo on
+> [Google
+Colab](https://colab.research.google.com/drive/1hPWqucbPGTavNlYvOBvSNBAwdcPZKe8F),
+but setting up the environment there could take some time and the free tier is
+only applicable for inference of the 1b models.
+
 The Python package of DeTi*k*Zify can be easily installed using
 [pip](https://pip.pypa.io/en/stable):
 ```sh
@@ -33,16 +44,6 @@ In addition, DeTi*k*Zify requires a full
 [ghostscript](https://www.ghostscript.com), and,
 [poppler](https://poppler.freedesktop.org) which you have to install through
 your package manager or via other means.
-
-> [!TIP]
-> If you encounter difficulties with installation and inference on your own
-> hardware, consider using our demo on [Google
-> Colab](https://colab.research.google.com/drive/1hPWqucbPGTavNlYvOBvSNBAwdcPZKe8F).
-> Please note, however, that setting up the environment may take some time, and
-> the free tier is only applicable for inference of the 1b models. For a more
-> convenient experience and access to all models, consider duplicating our
-> [Hugging Face Space](https://huggingface.co/spaces/nllg/DeTikZify) with a
-> paid private GPU runtime.
 
 ## Usage
 If all required dependencies are installed, the full range of DeTi*k*Zify
