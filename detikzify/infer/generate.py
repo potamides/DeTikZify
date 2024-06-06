@@ -156,7 +156,6 @@ class DetikzifyGenerator:
         self.solution = deque(maxlen=1)
         self.failed_rollouts = dict()
         self.norm = DynMinMaxNorm()
-        self.thread = ThreadPool(processes=1)
         self.montecarlo = MonteCarlo(
             root_node=WideNode(
                 tokenizer.text(
@@ -203,30 +202,31 @@ class DetikzifyGenerator:
 
     def rollout(self, input_ids: torch.Tensor) -> Generator[torch.Tensor, None, None]:
         rollout_control, streamer = ExplicitAbort(), TokenStreamer()
-        async_result = self.thread.apply_async(
-            func=self.generate,
-            error_callback=streamer.propagate_error,
-            args=[input_ids],
-            kwds=dict(
-                stopping_criteria=StoppingCriteriaList([rollout_control]),
-                streamer=streamer,
+        with ThreadPool(processes=1) as thread:
+            async_result = thread.apply_async(
+                func=self.generate,
+                error_callback=streamer.propagate_error,
+                args=[input_ids],
+                kwds=dict(
+                    stopping_criteria=StoppingCriteriaList([rollout_control]),
+                    streamer=streamer,
+                )
             )
-        )
 
-        try:
-            prev, line = input_ids, list()
-            for token in streamer:
-                line.append(token)
-                if token == self.newline_id:
-                    prev = torch.cat((prev, torch.tensor(line, device=prev.device)))
-                    line.clear()
-                    yield prev
-            if line:
-                yield torch.cat((prev, torch.tensor(line, device=prev.device)))
-        except (GeneratorExit, KeyboardInterrupt):
-            rollout_control.abort()
-            async_result.wait()
-            raise
+            try:
+                prev, line = input_ids, list()
+                for token in streamer:
+                    line.append(token)
+                    if token == self.newline_id:
+                        prev = torch.cat((prev, torch.tensor(line, device=prev.device)))
+                        line.clear()
+                        yield prev
+                if line:
+                    yield torch.cat((prev, torch.tensor(line, device=prev.device)))
+            except (GeneratorExit, KeyboardInterrupt):
+                rollout_control.abort()
+                async_result.wait()
+                raise
 
     @cast_cache(lambda token_ids: tuple(token_ids.tolist()))
     def decode(self, token_ids: torch.Tensor) -> TikzDocument:

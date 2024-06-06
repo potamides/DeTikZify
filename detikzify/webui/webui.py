@@ -115,13 +115,12 @@ def inference(
         top_k=top_k,
         compile_timeout=compile_timeout,
     )
-    thread = ThreadPool(processes=1)
 
     @cache
     def compile_info_once():
         gr.Info('Compiling, please wait.')
 
-    with TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir:
+    with TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir, ThreadPool(processes=1) as thread:
         if algorithm == "mcts":
             iterator = generate.simulate(
                 image=image['composite'],
