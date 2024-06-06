@@ -21,7 +21,7 @@ In
 particular instance, for example, we attempted to "prompt" DeTikZify to align
 characters diagonally around an equal sign, but it was unsuccessful even after
 many simulations. However, upon adjusting the input (by reducing the stroke
-width and using more commonplace characters) we achieved the [intended
+width and using more easily recognizable characters) we achieved the [intended
 output](https://github.com/potamides/DeTikZify/assets/53401822/c8ecfbff-d22e-41d5-8f73-e0cfafe88690)
 after only one simulation.
 
