@@ -29,7 +29,8 @@ https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3
 > you can try our demo on [Google
 > Colab](https://colab.research.google.com/drive/1hPWqucbPGTavNlYvOBvSNBAwdcPZKe8F).
 > However, setting up the environment there might take some time, and the free
-> tier only supports inference for the 1b models.
+> tier only supports inference for the 1b models. Don't forget to read our
+> [usage tips](https://github.com/potamides/DeTikZify/tree/main/detikzify/webui#usage-tips)!
 
 The Python package of DeTi*k*Zify can be easily installed using
 [pip](https://pip.pypa.io/en/stable):
