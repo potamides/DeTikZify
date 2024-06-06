@@ -14,7 +14,9 @@ is installed, it is picked up automatically and should boost inference speeds.
 **Image Editor** You can draw sketches in the integrated image editor, but its
 feature set is quite limited. If you are not satisfied with the synthesized
 Ti*k*Z programs, try drawing more elaborate sketches in an editor of your
-choice and upload them into the UI.
+choice (perhaps with graphics primitives) and upload them into the UI.
+Alternatively, experimenting with line thickness and/or colors in the
+integrated editor might also help.
 
 **Input Postprocessing** Furthermore, please note that all input images are
 cropped to the smallest square around their content and then resized to the
@@ -31,7 +33,7 @@ that you will have to assemble the pieces yourself.
 
 **Source Code Artifacts** Due to the way we preprocess our
 [arXiv.org](https://arxiv.org) data, the preambles of the extracted Ti*k*Z
-programs sometimes include package that are not used inside the `tikzpicture`
+programs sometimes include packages that are not used inside the `tikzpicture`
 environments, and the DeTi*k*Zify models pick up on this behavior. While this
 does not hinder compilation in any way, we still recommend everyone to check
 the generated preambles and clean them up, if necessary.
