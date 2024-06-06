@@ -11,6 +11,20 @@ https://huggingface.co/docs/transformers/en/perf_infer_gpu_one?install=NVIDIA#fl
 is installed, it is picked up automatically and should boost inference speeds.
 
 ## Usage Tips
+**Visual Prompting** Creating sketches for DeTi*k*Zify (or providing any input
+images) shares many similarities with the process of [prompting large language
+models](https://en.wikipedia.org/wiki/Prompt_engineering). If DeTi*k*Zify
+struggles to comprehend your intent, consider "rephrasing" your input. This
+could mean simplifying your sketches or focusing more on the key issue at hand.
+In
+[this](https://github.com/potamides/DeTikZify/assets/53401822/2819ebca-81f6-4173-8809-0b4255d3e976)
+particular instance, for example, we attempted to "prompt" DeTikZify to align
+characters diagonally around an equal sign, but it was unsuccessful even after
+many simulations. However, upon adjusting the input (by reducing the stroke
+width and using more commonplace characters) we achieved the [intended
+output](https://github.com/potamides/DeTikZify/assets/53401822/c8ecfbff-d22e-41d5-8f73-e0cfafe88690)
+after only one simulation.
+
 **Image Editor** You can draw sketches in the integrated image editor, but its
 feature set is quite limited. If you are not satisfied with the synthesized
 Ti*k*Z programs, try drawing more elaborate sketches in an editor of your
@@ -18,18 +32,19 @@ choice (perhaps with graphics primitives) and upload them into the UI.
 Alternatively, experimenting with line thickness and/or colors in the
 integrated editor might also help.
 
-**Input Postprocessing** Furthermore, please note that all input images are
-cropped to the smallest square around their content and then resized to the
-resolution DeTi*k*Zify expects. If you leave large margins this means that
-DeTi*k*Zify might perceive your input differently from how you intended (e.g.,
-by drawing thicker axes). As a rule of thumb, always try to fill as much of the
-canvas as possible.
+**Input Postprocessing** Please note that all input images are cropped to the
+smallest square around their content and then resized to the resolution
+DeTi*k*Zify expects. If you leave large margins this means that DeTi*k*Zify
+might perceive your input differently from how you intended (e.g., by drawing
+thicker axes). As a rule of thumb, always try to fill as much of the canvas as
+possible.
 
-**Input Complexity** If you provide very complex sketches (or figures) and
-are not satisfied with the results, you can also try segmenting your input and
-letting DeTi*k*Zify synthesize the individual pieces independently. This has
-the advantage that the results will probably be better, and the disadvantage
-that you will have to assemble the pieces yourself.
+**Input Complexity** If you provide very complex sketches (or figures) and are
+not satisfied with the results, you can also try segmenting (or simplifying)
+your input and letting DeTi*k*Zify synthesize the individual pieces
+independently. This has the advantage that the results will probably be better,
+and the disadvantage that you will have to modify and assemble the pieces
+yourself.
 
 **Source Code Artifacts** Due to the way we preprocess our
 [arXiv.org](https://arxiv.org) data, the preambles of the extracted Ti*k*Z
