@@ -103,6 +103,21 @@ not permit redistribution. We do, however, release our [dataset creation
 scripts](https://github.com/potamides/DaTikZ) and encourage anyone to recreate
 the full version of DaTi*k*Z<sub>v2</sub> themselves.
 
+## Citation
+If DeTi*k*Zify has been beneficial for your research or applications, we kindly
+request you to acknowledge its use by citing it as follows:
+
+```bibtex
+@misc{belouadi2024detikzify,
+      title={DeTikZify: Synthesizing Graphics Programs for Scientific Figures and Sketches with TikZ}, 
+      author={Jonas Belouadi and Simone Paolo Ponzetto and Steffen Eger},
+      year={2024},
+      eprint={2405.15306},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
+}
+```
+
 ## Acknowledgments
 The implementation of the model architecture is largely based on
 [LLaVA](https://github.com/haotian-liu/LLaVA). Our MCTS implementation takes
