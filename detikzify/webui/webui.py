@@ -255,6 +255,7 @@ def build_ui(
                 strict = gr.Checkbox(
                     value=False,
                     label="Strict mode",
+                    visible=algorithm=="mcts",
                     info="Treat recoverable errors same as fatal errors when computing scores for MCTS."
                 )
                 preprocess = gr.Checkbox(
@@ -291,12 +292,13 @@ def build_ui(
                 gr.Code("", visible=False),
                 gr.Slider(visible=alg=="mcts"),
                 gr.Slider(visible=alg=="mcts"),
+                gr.Checkbox(visible=alg=="mcts"),
                 gr.Gallery(None, visible=alg=="mcts"),
                 gr.Image(None, visible=alg=="sampling"),
                 gr.Tabs(selected=0)
             ),
             inputs=algorithm_radio,
-            outputs=[stream_code, gallery_code, budget, exploration, result_gallery, result_image, tabs],
+            outputs=[stream_code, gallery_code, budget, exploration, strict, result_gallery, result_image, tabs],
             cancels=generate_event,
             show_progress="hidden",
             queue=False
