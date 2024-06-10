@@ -44,7 +44,7 @@ CSS = """
     .output-code {
         flex-grow: 1;
         height: 0vh;
-        min-height: 492px;
+        min-height: 250px;
         scrollbar-width: thin !important;
     }
     .output-code .hide {
@@ -59,7 +59,7 @@ CSS = """
     .output-image {
         flex-grow: 1;
         height: 0vh;
-        min-height: 492px;
+        min-height: 250px;
         overflow-y: auto !important;
         scrollbar-width: thin !important;
     }

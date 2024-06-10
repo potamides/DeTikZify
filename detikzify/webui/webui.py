@@ -1,10 +1,7 @@
-from functools import cache, lru_cache, partial
-from inspect import signature
+from functools import partial
 from multiprocessing.pool import ThreadPool
-from operator import itemgetter
-from os import fdopen
 from sys import float_info
-from tempfile import TemporaryDirectory, mkstemp
+from tempfile import TemporaryDirectory
 from time import time
 from typing import Dict
 
@@ -14,74 +11,17 @@ from torch import bfloat16, float16
 from torch.cuda import is_available as is_cuda_available, is_bf16_supported
 from transformers.utils import is_flash_attn_2_available
 
-from ..infer import DetikzifyPipeline, TikzDocument
-from ..model import load
+from ..infer import DetikzifyPipeline
 from ..util import TextIteratorStreamer
+from .helpers import (
+    GeneratorLock,
+    MctsOutputs,
+    cached_load,
+    info_once,
+    make_light,
+    to_svg,
+)
 from .strings import ALGORITHMS, BANNER, CSS, GALLERY_DESELECT_HACK, MODELS
-
-
-def to_svg(
-    tikzdoc: TikzDocument,
-    build_dir: str
-):
-    if not tikzdoc.is_rasterizable:
-        if tikzdoc.compiled_with_errors:
-            raise gr.Error("TikZ code did not compile!")
-        else:
-            gr.Warning("TikZ code compiled to an empty image!")
-    elif tikzdoc.compiled_with_errors:
-        gr.Warning("TikZ code compiled with errors!")
-
-    fd, path = mkstemp(dir=build_dir, suffix=".svg")
-    with fdopen(fd, "w") as f:
-        if pdf:=tikzdoc.pdf:
-            f.write(pdf[0].get_svg_image())
-    return path if pdf else None
-
-# https://stackoverflow.com/a/50992575
-def make_ordinal(n):
-    n = int(n)
-    if 11 <= (n % 100) <= 13:
-        suffix = 'th'
-    else:
-        suffix = ['th', 'st', 'nd', 'rd', 'th'][min(n % 10, 4)]
-    return str(n) + suffix
-
-class MctsOutputs(set):
-    def __init__(self, build_dir, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.build_dir, self.svgmap, self.fails = build_dir, dict(), 0
-
-    def add(self, score, tikzdoc): # type: ignore
-        if (score, tikzdoc) not in self:
-            try:
-                 svg = to_svg(tikzdoc, build_dir=self.build_dir)
-                 super().add((score, tikzdoc))
-                 self.svgmap[tikzdoc] = svg
-            except gr.Error:
-                gr.Warning("TikZ code did not compile, discarding output!")
-                if len(self): self.fails += 1
-        elif len(self): self.fails += 1
-
-    @property
-    def programs(self):
-        return [tikzdoc.code for _, tikzdoc in sorted(self, key=itemgetter(0), reverse=True)]
-
-    @property
-    def images(self):
-        return [
-            (self.svgmap[tikzdoc], make_ordinal(idx))
-            for idx, (_, tikzdoc) in enumerate(sorted(self, key=itemgetter(0), reverse=True), 1)
-        ]
-
-    @property
-    def first_success(self):
-        return len(self) == 1 and not self.fails
-
-@lru_cache(maxsize=1)
-def cached_load(*args, **kwargs):
-    gr.Info("Instantiating model. This could take a while...")
-    return load(*args, **kwargs)
 
 def inference(
     model_name: str,
@@ -116,10 +56,6 @@ def inference(
         compile_timeout=compile_timeout,
     )
 
-    @cache
-    def compile_info_once():
-        gr.Info('Compiling, please wait.')
-
     with TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir, ThreadPool(processes=1) as thread:
         if algorithm == "mcts":
             iterator = generate.simulate(
@@ -138,7 +74,7 @@ def inference(
                 for new_text in streamer:
                     code += new_text
                     yield code, tikzdocs.programs, None, tikzdocs.images, gr.Tabs()
-                compile_info_once()
+                info_once('Compiling, please wait.')
                 tikzdocs.add(*async_result.get())
                 yield code, tikzdocs.programs, None, tikzdocs.images, gr.Tabs(selected=1 if tikzdocs.first_success else None)
                 if time() - start > mcts_timeout * 60:
@@ -153,30 +89,13 @@ def inference(
             for new_text in streamer:
                 code += new_text
                 yield code, [], None, None, gr.Tabs()
-            compile_info_once()
+            info_once('Compiling, please wait.')
             tikzdoc = async_result.get()
             yield tikzdoc.code, [], to_svg(tikzdoc, build_dir=tmpdir), None, gr.Tabs(selected=1)
 
 def check_inputs(image: Dict[str, Image.Image]):
     if image['composite'].getcolors(1) is not None:
         raise gr.Error("Image has no content!")
-
-def make_light(stylable):
-    """
-    Patch gradio to only contain light mode colors.
-    """
-    if isinstance(stylable, gr.themes.Base): # remove dark variants from the entire theme
-        params = signature(stylable.set).parameters
-        colors = {color: getattr(stylable, color.removesuffix("_dark")) for color in dir(stylable) if color in params}
-        return stylable.set(**colors)
-    elif isinstance(stylable, gr.Blocks): # also handle components which do not use the theme (e.g. modals)
-        stylable.load(
-            fn=None,
-            js="() => document.querySelectorAll('.dark').forEach(el => el.classList.remove('dark'))"
-        )
-        return stylable
-    else:
-        raise ValueError
 
 def build_ui(
     model=list(MODELS)[0],
@@ -326,7 +245,7 @@ def build_ui(
             show_progress="hidden",
             queue=False
         ).then(
-            partial(inference, compile_timeout=timeout),
+            GeneratorLock(partial(inference, compile_timeout=timeout)).generate,
             # lots of inputs and outputs as we handle mcts and normal sampling with one function
             inputs=[base_model, sketchpad, temperature, top_p, top_k, exploration, budget, strict, preprocess, algorithm_radio],
             outputs=[stream_code, mcts_programs, result_image, result_gallery, tabs] # type: ignore
