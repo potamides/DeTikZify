@@ -12,7 +12,7 @@ from torch.cuda import is_available as is_cuda_available, is_bf16_supported
 from transformers.utils import is_flash_attn_2_available
 
 from ..infer import DetikzifyPipeline
-from ..util import TextIteratorStreamer
+from ..util import TextIteratorStreamer, ExplicitAbort
 from .helpers import (
     GeneratorLock,
     MctsOutputs,
@@ -22,6 +22,43 @@ from .helpers import (
     to_svg,
 )
 from .strings import ALGORITHMS, BANNER, CSS, GALLERY_DESELECT_HACK, MODELS
+
+def simulate(pipe, streamer, image,  preprocess, exploration, strict, timeout, thread, tmpdir):
+    iterator = pipe.simulate(
+        image=image,
+        exploration=exploration,
+        strict=strict,
+        preprocess=preprocess,
+    )
+    # we have to implement our own timer since we use threading and would run into a deadlock otherwise
+    tikzdocs, start = MctsOutputs(build_dir=tmpdir), time()
+    while True:
+        code, async_result = "", thread.apply_async(
+            func=lambda: next(iterator),
+            error_callback=streamer.propagate_error
+        )
+        for new_text in streamer:
+            code += new_text
+            yield code, tikzdocs.programs, None, tikzdocs.images, gr.Tabs()
+        info_once('Compiling, please wait.')
+        tikzdocs.add(*async_result.get())
+        yield code, tikzdocs.programs, None, tikzdocs.images, gr.Tabs(selected=1 if tikzdocs.first_success else None)
+        if time() - start > timeout * 60:
+            yield "", tikzdocs.programs, None, tikzdocs.images, gr.Tabs(selected=1)
+            break
+
+def sample(pipe, streamer, image,  preprocess, thread, tmpdir):
+    code, async_result = "", thread.apply_async(
+        func=pipe.sample,
+        error_callback=streamer.propagate_error,
+        kwds=dict(image=image, preprocess=preprocess)
+    )
+    for new_text in streamer:
+        code += new_text
+        yield code, [], None, None, gr.Tabs()
+    info_once('Compiling, please wait.')
+    tikzdoc = async_result.get()
+    yield tikzdoc.code, [], to_svg(tikzdoc, build_dir=tmpdir), None, gr.Tabs(selected=1)
 
 def inference(
     model_name: str,
@@ -42,11 +79,11 @@ def inference(
         torch_dtype=bfloat16 if is_cuda_available() and is_bf16_supported() else float16,
         attn_implementation="flash_attention_2" if is_flash_attn_2_available() else None,
     )
-    streamer = TextIteratorStreamer(
+    control, streamer = ExplicitAbort(), TextIteratorStreamer(
         tokenizer=tokenizer.text, # type: ignore
         skip_special_tokens=True
     )
-    generate = DetikzifyPipeline(
+    pipe = DetikzifyPipeline(
         model=model,
         tokenizer=tokenizer,
         streamer=streamer,
@@ -54,44 +91,38 @@ def inference(
         top_p=top_p,
         top_k=top_k,
         compile_timeout=compile_timeout,
+        control=control,
     )
 
     with TemporaryDirectory(ignore_cleanup_errors=True) as tmpdir, ThreadPool(processes=1) as thread:
-        if algorithm == "mcts":
-            iterator = generate.simulate(
-                image=image['composite'],
-                exploration=mcts_exploration,
-                strict=mcts_strict,
-                preprocess=preprocess,
-            )
-            # we have to implement our own timer since we use threading and would run into a deadlock otherwise
-            tikzdocs, start = MctsOutputs(build_dir=tmpdir), time()
-            while True:
-                code, async_result = "", thread.apply_async(
-                    func=lambda: next(iterator),
-                    error_callback=streamer.propagate_error
+        try:
+            if algorithm == "mcts":
+                yield from simulate(
+                    pipe=pipe,
+                    streamer=streamer,
+                    image=image['composite'],
+                    preprocess=preprocess,
+                    exploration=mcts_exploration,
+                    strict=mcts_strict,
+                    timeout=mcts_timeout,
+                    thread=thread,
+                    tmpdir=tmpdir
                 )
-                for new_text in streamer:
-                    code += new_text
-                    yield code, tikzdocs.programs, None, tikzdocs.images, gr.Tabs()
-                info_once('Compiling, please wait.')
-                tikzdocs.add(*async_result.get())
-                yield code, tikzdocs.programs, None, tikzdocs.images, gr.Tabs(selected=1 if tikzdocs.first_success else None)
-                if time() - start > mcts_timeout * 60:
-                    yield "", tikzdocs.programs, None, tikzdocs.images, gr.Tabs(selected=1)
-                    break
-        else: # sampling
-            code, async_result = "", thread.apply_async(
-                func=generate.sample,
-                error_callback=streamer.propagate_error,
-                kwds=dict(image=image['composite'], preprocess=preprocess)
-            )
-            for new_text in streamer:
-                code += new_text
-                yield code, [], None, None, gr.Tabs()
-            info_once('Compiling, please wait.')
-            tikzdoc = async_result.get()
-            yield tikzdoc.code, [], to_svg(tikzdoc, build_dir=tmpdir), None, gr.Tabs(selected=1)
+            else: # sampling
+                yield from sample(
+                    pipe=pipe,
+                    streamer=streamer,
+                    image=image['composite'],
+                    preprocess=preprocess,
+                    thread=thread,
+                    tmpdir=tmpdir
+                )
+        except:
+            control.abort()
+            raise
+        finally:
+            thread.close()
+            thread.join()
 
 def check_inputs(image: Dict[str, Image.Image]):
     if image['composite'].getcolors(1) is not None:

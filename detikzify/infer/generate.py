@@ -135,6 +135,7 @@ class DetikzifyGenerator:
         compile_timeout: Optional[int] = 60,
         mcts_timeout: Optional[int] = None,
         streamer: Optional[BaseStreamer] = None,
+        control: Optional[ExplicitAbort] = None,
         exploration: float = 0.6, # exploration coefficient
         strict: bool = False, # if True, treat recoverable errors same as fatal errors when computing scores
         **gen_kwargs,
@@ -156,6 +157,7 @@ class DetikzifyGenerator:
         self.solution = deque(maxlen=1)
         self.failed_rollouts = dict()
         self.norm = DynMinMaxNorm()
+        self.control = control or ExplicitAbort()
         self.montecarlo = MonteCarlo(
             root_node=WideNode(
                 tokenizer.text(
@@ -201,14 +203,14 @@ class DetikzifyGenerator:
             ).squeeze()
 
     def rollout(self, input_ids: torch.Tensor) -> Generator[torch.Tensor, None, None]:
-        rollout_control, streamer = ExplicitAbort(), TokenStreamer()
         with ThreadPool(processes=1) as thread:
+            streamer = TokenStreamer()
             async_result = thread.apply_async(
                 func=self.generate,
                 error_callback=streamer.propagate_error,
                 args=[input_ids],
                 kwds=dict(
-                    stopping_criteria=StoppingCriteriaList([rollout_control]),
+                    stopping_criteria=StoppingCriteriaList([self.control.reset()]),
                     streamer=streamer,
                 )
             )
@@ -224,9 +226,13 @@ class DetikzifyGenerator:
                 if line:
                     yield torch.cat((prev, torch.tensor(line, device=prev.device)))
             except (GeneratorExit, KeyboardInterrupt):
-                rollout_control.abort()
-                async_result.wait()
+                self.control.abort()
                 raise
+            else:
+                if self.control.should_stop:
+                    raise InterruptedError
+            finally:
+                async_result.wait()
 
     @cast_cache(lambda token_ids: tuple(token_ids.tolist()))
     def decode(self, token_ids: torch.Tensor) -> TikzDocument:

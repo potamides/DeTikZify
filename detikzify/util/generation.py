@@ -15,6 +15,10 @@ class ExplicitAbort(StoppingCriteria):
     def __call__(self, input_ids, scores, **kwargs) -> bool:
         return self.should_stop
 
+    def reset(self):
+        self.should_stop = False
+        return self
+
     def abort(self):
         self.should_stop = True
 
