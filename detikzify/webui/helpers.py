@@ -104,6 +104,8 @@ class GeneratorLock:
 
     def generate(self, *args, **kwargs):
         if self.generator:
+            if self.generator.gi_running:
+                return # somehow we can end up here
             self.generator.close()
         self.generator = self.gen_func(*args, **kwargs)
         yield from self.generator
