@@ -50,7 +50,7 @@ def inference(
         model=model,
         tokenizer=tokenizer,
         streamer=streamer,
-        temperature=temperature + float_info.epsilon,
+        temperature=max(float(temperature), float_info.epsilon),
         top_p=top_p,
         top_k=top_k,
         compile_timeout=compile_timeout,
