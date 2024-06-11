@@ -20,7 +20,7 @@ logger = logging.get_logger("transformers")
 
 class TikzDocument:
     """
-    Faciliate some operations with TikZ code. To compile the images a full
+    Facilitate some operations with TikZ code. To compile the images a full
     TeXLive installation is assumed to be on the PATH. Cropping additionally
     requires Ghostscript, and rasterization needs poppler.
     """
