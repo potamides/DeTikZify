@@ -8,12 +8,14 @@ readme = "README.md"
 license = {text = "Apache-2.0 License"}
 dependencies = [
   "torch~=2.2.1",
-  "transformers[accelerate,tokenizers]~=4.38.1",
+  "transformers[accelerate,tokenizers]~=4.38.1; platform_system != 'Darwin'",
+  "transformers[accelerate,tokenizers]==4.38.1; platform_system == 'Darwin'",
   "diffusers~=0.26.3",
   "datasets~=2.17.1",
   "timm~=0.9.16",
   "Pillow~=10.2.0",
   "requests~=2.31.0",
+  "numpy==1.*",
   # pdf
   "PyMuPDF~=1.23.25",
   "pdf2image~=1.17.0",
