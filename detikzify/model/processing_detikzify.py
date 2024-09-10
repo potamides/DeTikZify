@@ -15,19 +15,24 @@
 # Adapted from
 # https://github.com/andimarafioti/transformers/commit/9b09c481c4c39a172156b7ee44dc642160d0e809
 
-from typing import TYPE_CHECKING, List, Optional, Union, Unpack
+from typing import List, Optional, TYPE_CHECKING, Union, Unpack
 
 from transformers.feature_extraction_utils import BatchFeature
 from transformers.image_utils import ImageInput, is_valid_image, load_image
-from transformers.processing_utils import ProcessingKwargs, ProcessorMixin
-from transformers.tokenization_utils_base import AddedToken, BatchEncoding, TextInput
-from transformers.utils import logging, is_remote_url
+from transformers.processing_utils import ProcessingKwargs, ProcessorMixin, transformers_module
+from transformers.tokenization_utils_base import BatchEncoding, TextInput
+from transformers.utils import is_remote_url, logging
+
+from .image_processing_detikzify import DetikzifyImageProcessor
 
 
 if TYPE_CHECKING:
     from transformers.tokenization_utils_base import PreTokenizedInput
 
 logger = logging.get_logger(__name__)
+
+# HACK: "fix module transformers has no attribute DetikzifyImageProcessor"
+setattr(transformers_module, DetikzifyImageProcessor.__name__, DetikzifyImageProcessor)
 
 
 def is_image_or_image_url(elem):
@@ -54,20 +59,17 @@ class DetikzifyProcessor(ProcessorMixin):
             raise ValueError("You need to specify an `image_processor`.")
         if tokenizer is None:
             raise ValueError("You need to specify a `tokenizer`.")
+        if image_token not in tokenizer.vocab:
+            raise ValueError(f"{image_token} needs to be added to the `tokenizer` vocabulary.")
 
-        self.image_token = AddedToken(image_token, normalized=False, special=True)
+        self.image_token = image_token
         self.image_seq_len = image_seq_len
-        tokenizer.add_special_tokens(dict(
-            additional_special_tokens=[
-                self.image_token,
-            ]
-        ))
 
         super().__init__(image_processor, tokenizer, **kwargs)
 
     def __call__(
         self,
-        images: Union[ImageInput, List[ImageInput], List[List[ImageInput]]] = None,
+        images: Union[ImageInput, str, List[Union[ImageInput, str]], List[List[Union[ImageInput, str]]]] = None,
         text: Union[TextInput, "PreTokenizedInput", List[TextInput], List["PreTokenizedInput"]] = None,
         audio=None,
         videos=None,
@@ -93,24 +95,21 @@ class DetikzifyProcessor(ProcessorMixin):
         inputs = BatchFeature()
 
         if images is not None:
-            if is_image_or_image_url(images):
+            if not isinstance(images, (list, tuple)):
                 images = [[images]]
-            elif isinstance(images, list) and is_image_or_image_url(images[0]):
+            elif not isinstance(images[0], (list, tuple)):
                 images = [images]
-            elif (
-                not isinstance(images, list)
-                and not isinstance(images[0], list)
-                and not is_image_or_image_url(images[0][0])
-            ):
+
+            try:
+                # Load images if they are URLs
+                images = [[load_image(im) if not is_valid_image(im) else im for im in sample] for sample in images]
+            except:
                 raise ValueError(
                     "Invalid input images. Please provide a single image or a list of images or a list of list of images."
                 )
-            n_images_in_images = [len(sample) for sample in images]
-
-            # Load images if they are URLs
-            images = [[load_image(im) if is_remote_url(im) else im for im in sample] for sample in images]
 
             image_inputs = self.image_processor(images, **output_kwargs["images_kwargs"])
+            n_images_in_images = [len(sample) for sample in images]
             inputs.update(image_inputs)
 
         if text is not None:
@@ -119,18 +118,16 @@ class DetikzifyProcessor(ProcessorMixin):
             elif not isinstance(text, list) and not isinstance(text[0], str):
                 raise ValueError("Invalid input text. Please provide a string, or a list of strings")
 
-            image_token = self.image_token.content
-
             prompt_strings = []
             for sample in text:
-                n_images_in_text.append(sample.count(image_token))
+                n_images_in_text.append(sample.count(self.image_token))
 
-                split_sample = sample.split(image_token)
+                split_sample = sample.split(self.image_token)
                 if len(split_sample) == 1:
                     raise ValueError("The image token should be present in the text.")
 
                 # Expand image token to length `image_seq_len`
-                prompt_strings.append((image_token * image_seq_len).join(split_sample))
+                prompt_strings.append((self.image_token * image_seq_len).join(split_sample))
 
             text_inputs = self.tokenizer(text=prompt_strings, **output_kwargs["text_kwargs"])
             inputs.update(text_inputs)

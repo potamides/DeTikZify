@@ -17,9 +17,9 @@
 import os
 from typing import Union
 
+from transformers import CONFIG_MAPPING
 from transformers.configuration_utils import PretrainedConfig
 from transformers.utils import logging
-from transformers.auto import CONFIG_MAPPING
 
 
 logger = logging.get_logger(__name__)
@@ -35,7 +35,7 @@ class DetikzifyVisionConfig(PretrainedConfig):
         num_hidden_layers=12,
         num_attention_heads=16,
         num_channels=3,
-        image_size=224,
+        image_size=420,
         patch_size=32,
         hidden_act="gelu_pytorch_tanh",
         layer_norm_eps=1e-6,

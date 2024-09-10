@@ -22,7 +22,7 @@ import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss
 import torch.utils.checkpoint
-from transformers import AutoModel, PreTrainedModel, SiglipVisionTransformer
+from transformers import AutoModel, PreTrainedModel, SiglipVisionModel
 from transformers.modeling_outputs import ModelOutput
 from transformers.utils import logging
 
@@ -113,7 +113,7 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
         self.padding_idx = self.config.text_config.pad_token_id
         self.vocab_size = self.config.text_config.vocab_size
 
-        self.vision_model = SiglipVisionTransformer._from_config(
+        self.vision_model = SiglipVisionModel._from_config(
             config.vision_config, attn_implementation=config._attn_implementation
         )
         self.connector = DetikzifyConnector(config)
