@@ -10,7 +10,6 @@ dependencies = [
   "torch~=2.4.1",
   "transformers[accelerate,tokenizers]~=4.44.2",
   "datasets~=2.21.0",
-  "timm~=1.0.9",
   "Pillow~=10.4.0",
   "requests~=2.32.3",
   "numpy~=2.1.1",
@@ -36,6 +35,9 @@ evaluate = [
 ]
 examples = [
   "diffusers~=0.30.2"
+]
+deepspeed = [
+  "deepspeed~=0.13.4"
 ]
 
 [project.urls]
