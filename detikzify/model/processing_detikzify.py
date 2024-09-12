@@ -98,7 +98,7 @@ class DetikzifyProcessor(ProcessorMixin):
 
             try:
                 # Load images if they are URLs
-                images = [[load_image(im) im for im in sample] for sample in images]
+                images = [[load_image(im) for im in sample] for sample in images]
             except:
                 raise ValueError(
                     "Invalid input images. Please provide a single image or a list of images or a list of list of images."

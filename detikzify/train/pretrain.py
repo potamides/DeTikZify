@@ -16,7 +16,7 @@ def tokenize(
     image = batch['image']
     text = [batch['text']] if isinstance(batch['text'], str) else batch['text']
     image_token = processor.image_token
-    image_token_id = processor.tokenizer.convert_ids_to_tokens(image_token)
+    image_token_id = processor.tokenizer.convert_tokens_to_ids(image_token)
 
     assert all(image_token not in t for t in text)
 
@@ -86,7 +86,9 @@ def train(
             logging_steps=10,
             lr_scheduler_type="cosine",
             optim="adamw_torch" if deepspeed else "adamw_torch_fused",
+            remove_unused_columns=False,
             save_strategy="no",
+            report_to="none",
             output_dir=output_dir,
             deepspeed=deepspeed,
         )

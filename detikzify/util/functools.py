@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from collections import defaultdict
 from functools import cache, wraps
 from typing import Any
 
@@ -71,3 +72,12 @@ def listify(fn=None, wrapper=list):
     if fn is None:
         return listify_return
     return listify_return(fn)
+
+def batchify(fn=None):
+    def batch(list_of_dicts):
+        batch_dict = defaultdict(list)
+        for d in list_of_dicts:
+            for k, v in d.items():
+                batch_dict[k].append(v)
+        return batch_dict
+    return listify(fn=fn, wrapper=batch)

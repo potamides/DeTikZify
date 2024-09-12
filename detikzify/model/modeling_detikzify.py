@@ -238,15 +238,9 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
                 )
                 pixel_attention_mask = pixel_attention_mask[real_images_inds].contiguous()
 
-            patch_size = self.config.vision_config.patch_size
-            patches_subgrid = pixel_attention_mask.unfold(dimension=1, size=patch_size, step=patch_size)
-            patches_subgrid = patches_subgrid.unfold(dimension=2, size=patch_size, step=patch_size)
-            patch_attention_mask = (patches_subgrid.sum(dim=(-1, -2)) > 0).bool()
-
             # Get sequence from the vision encoder
             image_hidden_states = self.vision_model(
                 pixel_values=pixel_values,
-                patch_attention_mask=patch_attention_mask,
             ).last_hidden_state
 
             # Modality projection & resampling

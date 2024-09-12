@@ -16,6 +16,7 @@ def parse_args():
         description="Fine-tune DeTikZify on DaTikZ."
     )
     argument_parser.add_argument("--base_model",
+        required=True,
         help=(
             "The model checkpoint for weights initialization. "
             "Leave None if you want to train a model from scratch"
