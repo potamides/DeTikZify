@@ -72,7 +72,7 @@ class ImageSim(Metric):
     def get_vision_features(self, image: Image.Image | str):
         image = load(image)
         if self.preprocess:
-            image = expand(image, max(image.size), trim=True)
+            image = expand(image, max(image.size), do_trim=True)
 
         with torch.inference_mode():
             pixels = self.processor(image).unsqueeze(0).to(self.device, self.dtype) # type: ignore

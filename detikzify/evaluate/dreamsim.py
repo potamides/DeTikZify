@@ -76,8 +76,8 @@ class DreamSim(Metric):
 
         for i1, i2 in zip(img1, img2): # type: ignore
             if self.preprocess:
-                i1 = expand(i1, max(i1.size), trim=True)
-                i2 = expand(i2, max(i2.size), trim=True)
+                i1 = expand(i1, max(i1.size), do_trim=True)
+                i2 = expand(i2, max(i2.size), do_trim=True)
             i1 = self.processor(i1).to(self.device, self.dtype)
             i2 = self.processor(i2).to(self.device, self.dtype)
             with torch.inference_mode():

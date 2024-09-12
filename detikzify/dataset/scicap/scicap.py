@@ -14,7 +14,7 @@ from datasets.info import DatasetInfo
 from datasets.splits import Split, SplitGenerator
 from datasets.utils.hub import hf_hub_url
 
-from detikzify.util import expand
+from detikzify.util import convert, expand
 
 class SciCapConfig(builder.BuilderConfig):
     """BuilderConfig for SciCap."""
@@ -93,6 +93,6 @@ class SciCap(builder.GeneratorBasedBuilder):
                                 mention=annotation.get("mention"),
                                 paragraph=annotation.get("paragraph"),
                                 ocr=image.get("ocr"),
-                                image=expand(img, self.config.size) # type: ignore
+                                image=convert(expand(img, self.config.size), "png")
                             )
                             idx += 1

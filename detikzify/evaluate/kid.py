@@ -60,7 +60,7 @@ class KernelInceptionDistance(KID):
     def open(self, img):
         img = load(img)
         if self.preprocess:
-            return expand(img, max(img.size), trim=True)
+            return expand(img, max(img.size), do_trim=True)
         return img
 
     def update(self, imgs: Image.Image | str | List[Image.Image | str], *args, **kwargs):

@@ -343,7 +343,7 @@ class DetikzifyPipeline:
     def load(self, image: Union[Image.Image, str], preprocess: bool = True):
         image = load(image)
         if preprocess:
-            return expand(image, max(image.size), trim=True)
+            return expand(image, max(image.size), do_trim=True)
         return image
 
     def sample(self, image: Union[Image.Image, str], preprocess: bool = True, **gen_kwargs) -> TikzDocument:

@@ -10,7 +10,7 @@ from datasets import Features, Image, Sequence, Value, builder
 from datasets.info import DatasetInfo
 from datasets.splits import Split, SplitGenerator
 
-from detikzify.util import expand
+from detikzify.util import convert, expand
 
 class Paper2FigConfig(builder.BuilderConfig):
     """BuilderConfig for Paper2Fig."""
@@ -54,5 +54,5 @@ class Paper2Fig(builder.GeneratorBasedBuilder):
                         caption=figdata["captions"][0],
                         mention=[figdata["captions"][1:]],
                         ocr=[result['text'] for result in figdata['ocr_result']['ocr_result']],
-                        image=expand(tf.extractfile(member), self.config.size), # type: ignore
+                        image=convert(expand(tf.extractfile(member), self.config.size), "png"),
                     )
