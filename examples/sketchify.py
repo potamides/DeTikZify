@@ -98,7 +98,6 @@ def parse_args():
         "--path",
         default="nllg/datikz-v3",
         help="Path or name of the DaTikZ dataset.",
-
     )
     return argument_parser.parse_args()
 
