@@ -145,7 +145,7 @@ class TikzDocument:
 
         return self.Output(**output)
 
-    def rasterize(self, size=384, expand_to_square=True) -> Optional[Image.Image]:
+    def rasterize(self, size=420, expand_to_square=True) -> Optional[Image.Image]:
         if self.pdf:
             image = convert_from_bytes(self.pdf.tobytes(), size=size, single_file=True)[0]
             if expand_to_square:
