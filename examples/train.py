@@ -16,8 +16,10 @@ def parse_args():
         description="Fine-tune DeTikZify on DaTikZ."
     )
     argument_parser.add_argument("--base_model",
-        default="deepseek-ai/deepseek-coder-1.3b-base",
-        help="which base model to use",
+        help=(
+            "The model checkpoint for weights initialization. "
+            "Leave None if you want to train a model from scratch"
+        )
     )
     argument_parser.add_argument(
         "--projector",
@@ -25,7 +27,7 @@ def parse_args():
     )
     argument_parser.add_argument("--datikz",
         required=True,
-        help="path to the DaTikZ dataset (in parquet format)",
+        help="path to the DaTikZ train split processed by the ./sketchify script (in parquet format)",
     )
     argument_parser.add_argument("--output",
         default="models/detikzify",
@@ -48,14 +50,14 @@ if __name__ == "__main__":
     set_seed(0)
 
     args = parse_args()
-    model, tokenizer = load(args.base_model, pretrain_mm_mlp_adapter=args.projector)
+    model, processor = load(args.base_model, modality_projector=args.projector)
 
     datikz: Dataset = load_dataset("parquet", data_files=args.datikz, split="train") # type: ignore
-    datikz = datikz.select_columns(["image", "code"]).rename_column("code", "text")
+    datikz = datikz.select_columns(["image", "code", "sketches"]).rename_column("code", "text")
 
     train(
         model=model,
-        tokenizer=tokenizer,
+        processor=processor,
         dataset=datikz,
         output_dir=join(args.output, basename(model.config.name_or_path)), # type: ignore
         gradient_checkpointing=args.gradient_checkpointing,
