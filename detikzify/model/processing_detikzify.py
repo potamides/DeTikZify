@@ -21,7 +21,7 @@ from transformers.feature_extraction_utils import BatchFeature
 from transformers.image_utils import ImageInput, is_valid_image, load_image
 from transformers.processing_utils import ProcessingKwargs, ProcessorMixin, transformers_module
 from transformers.tokenization_utils_base import BatchEncoding, TextInput
-from transformers.utils import is_remote_url, logging
+from transformers.utils import logging
 
 from .image_processing_detikzify import DetikzifyImageProcessor
 
@@ -31,12 +31,8 @@ if TYPE_CHECKING:
 
 logger = logging.get_logger(__name__)
 
-# HACK: "fix module transformers has no attribute DetikzifyImageProcessor"
+# HACK: fix "module transformers has no attribute DetikzifyImageProcessor"
 setattr(transformers_module, DetikzifyImageProcessor.__name__, DetikzifyImageProcessor)
-
-
-def is_image_or_image_url(elem):
-    return is_remote_url(elem) or is_valid_image(elem)
 
 
 class DetikzifyProcessorKwargs(ProcessingKwargs, total=False):
@@ -98,11 +94,11 @@ class DetikzifyProcessor(ProcessorMixin):
             if not isinstance(images, (list, tuple)):
                 images = [[images]]
             elif not isinstance(images[0], (list, tuple)):
-                images = [images]
+                images = [[image] for image in images]
 
             try:
                 # Load images if they are URLs
-                images = [[load_image(im) if not is_valid_image(im) else im for im in sample] for sample in images]
+                images = [[load_image(im) im for im in sample] for sample in images]
             except:
                 raise ValueError(
                     "Invalid input images. Please provide a single image or a list of images or a list of list of images."
