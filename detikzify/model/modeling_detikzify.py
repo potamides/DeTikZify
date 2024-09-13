@@ -173,7 +173,6 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         pixel_values: Optional[torch.FloatTensor] = None,
-        pixel_attention_mask: Optional[torch.BoolTensor] = None,
         image_hidden_states: Optional[torch.FloatTensor] = None,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
@@ -215,35 +214,11 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
         if pixel_values is not None and image_hidden_states is not None:
             raise ValueError("You cannot specify both pixel_values and image_hidden_states at the same time")
         elif pixel_values is not None:
-            batch_size, num_images, num_channels, height, width = pixel_values.shape
-            pixel_values = pixel_values.to(dtype=self.dtype)  # fp16 compatibility
-            pixel_values = pixel_values.view(batch_size * num_images, *pixel_values.shape[2:])
-
-            # Remove padding images - padding images are full 0.
-            nb_values_per_image = pixel_values.shape[1:].numel()
-            real_images_inds = (pixel_values == 0.0).sum(dim=(-1, -2, -3)) != nb_values_per_image
-            pixel_values = pixel_values[real_images_inds].contiguous()
-
-            # Handle the vision attention mask
-            if pixel_attention_mask is None:
-                pixel_attention_mask = torch.ones(
-                    size=(pixel_values.size(0), pixel_values.size(2), pixel_values.size(3)),
-                    dtype=torch.bool,
-                    device=pixel_values.device,
-                )
-            else:
-                # Remove padding images from the mask
-                pixel_attention_mask = pixel_attention_mask.view(
-                    batch_size * num_images, *pixel_attention_mask.shape[2:]
-                )
-                pixel_attention_mask = pixel_attention_mask[real_images_inds].contiguous()
-
             # Get sequence from the vision encoder
             image_hidden_states = self.vision_model(
-                pixel_values=pixel_values,
+                pixel_values=pixel_values.to(dtype=self.dtype),  # fp16 compatibility
             ).last_hidden_state
-
-            # Modality projection & resampling
+            # Modality projection
             image_hidden_states = self.connector(image_hidden_states)
 
         elif image_hidden_states is not None:
@@ -330,7 +305,6 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel):
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         pixel_values: Optional[torch.FloatTensor] = None,
-        pixel_attention_mask: Optional[torch.BoolTensor] = None,
         image_hidden_states: Optional[torch.FloatTensor] = None,
         labels: Optional[torch.LongTensor] = None,
         use_cache: Optional[bool] = None,
@@ -352,7 +326,6 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel):
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
             pixel_values=pixel_values,
-            pixel_attention_mask=pixel_attention_mask,
             image_hidden_states=image_hidden_states,
             use_cache=use_cache,
             output_attentions=output_attentions,
@@ -437,12 +410,9 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel):
             model_inputs = {"input_ids": input_ids}
 
         image_hidden_states = kwargs.get("image_hidden_states", None)
-        if image_hidden_states is not None:
-            pixel_values = None
-            pixel_attention_mask = None
-        else:
+        if image_hidden_states is None:
             pixel_values = kwargs.get("pixel_values", None)
-            pixel_attention_mask = kwargs.get("pixel_attention_mask", None)
+
         model_inputs.update(
             {
                 "position_ids": position_ids,
@@ -450,7 +420,6 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel):
                 "use_cache": kwargs.get("use_cache"),
                 "attention_mask": attention_mask,
                 "pixel_values": pixel_values,
-                "pixel_attention_mask": pixel_attention_mask,
                 "image_hidden_states": image_hidden_states,
             }
         )
