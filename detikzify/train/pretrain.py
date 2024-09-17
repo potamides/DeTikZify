@@ -13,18 +13,15 @@ def tokenize(
     processor,
     **kwargs
 ):
-    image = batch['image']
-    text = [batch['text']] if isinstance(batch['text'], str) else batch['text']
     image_token = processor.image_token
     image_token_id = processor.tokenizer.convert_tokens_to_ids(image_token)
 
-    assert all(image_token not in t for t in text)
-
     input_ids = processor(
-        text=[image_token + t for t in text],
-        images=image,
+        text=batch['text'],
+        images=batch['image'],
         max_length=processor.tokenizer.model_max_length,
         pad_to_multiple_of=8,
+        add_eos_token=True,
         **kwargs
     )
     input_ids['labels'] = copy.deepcopy(input_ids['input_ids'])
@@ -77,6 +74,8 @@ def train(
             per_device_train_batch_size=micro_batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
             gradient_checkpointing=gradient_checkpointing,
+            # https://github.com/huggingface/transformers/issues/21381
+            gradient_checkpointing_kwargs={'use_reentrant':False},
             warmup_ratio=0.03,
             weight_decay=0,
             num_train_epochs=num_epochs,
@@ -86,6 +85,7 @@ def train(
             logging_steps=10,
             lr_scheduler_type="cosine",
             optim="adamw_torch" if deepspeed else "adamw_torch_fused",
+            ddp_find_unused_parameters=False,
             remove_unused_columns=False,
             save_strategy="no",
             report_to="none",

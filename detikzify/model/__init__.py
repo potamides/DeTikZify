@@ -7,7 +7,6 @@ from transformers import (
 )
 
 from .configuration_detikzify import *
-from .image_processing_detikzify import *
 from .modeling_detikzify import *
 from .processing_detikzify import *
 
@@ -15,7 +14,6 @@ def register():
     try:
         AutoConfig.register("detikzify", DetikzifyConfig)
         AutoModelForVision2Seq.register(DetikzifyConfig, DetikzifyForConditionalGeneration)
-        AutoImageProcessor.register(DetikzifyConfig, DetikzifyImageProcessor)
         AutoProcessor.register(DetikzifyConfig, DetikzifyProcessor)
     except ValueError:
         pass # already registered

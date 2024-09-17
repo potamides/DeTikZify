@@ -114,6 +114,7 @@ def train(
             logging_steps=10,
             lr_scheduler_type="cosine",
             optim="adamw_torch" if deepspeed else "adamw_torch_fused",
+            ddp_find_unused_parameters=False,
             remove_unused_columns=False,
             save_strategy="epoch",
             report_to="none",

@@ -18,9 +18,13 @@
 from typing import List, Optional, TYPE_CHECKING, Union, Unpack
 
 from transformers.feature_extraction_utils import BatchFeature
-from transformers.image_utils import ImageInput
+from transformers.image_utils import ImageInput, make_list_of_images
 from transformers.processing_utils import ProcessingKwargs, ProcessorMixin
-from transformers.tokenization_utils_base import BatchEncoding, TextInput
+from transformers.tokenization_utils_base import (
+    BatchEncoding,
+    PreTokenizedInput,
+    TextInput,
+)
 from transformers.utils import logging
 
 
@@ -77,8 +81,10 @@ class DetikzifyProcessor(ProcessorMixin):
 
         if images is None:
             raise ValueError("`images` are expected as arguments to a `DetikzifyProcessor` instance.")
+        else:
+            images = make_list_of_images(images)
         if text is None:
-            text = len(images) * [self.image_token]
+            text = len(images) * [""]
         elif isinstance(text, str):
             text = [text]
         if len(images) != len(text):
@@ -87,17 +93,14 @@ class DetikzifyProcessor(ProcessorMixin):
             )
 
         prompt_strings = []
-        for sample in text:
-            split_sample = sample.split(self.image_token)
-            if len(split_sample) != 2:
-                raise ValueError("The image token should be present exactly once in the text.")
+        for prompt in text:
+            assert self.image_token not in prompt, "Image tokens are added by the processor!"
             if add_bos_token:
-                split_sample[1] = self.tokenizer.bos_token + split_sample[1]
-            if add_bos_token:
-                split_sample[-1] += self.tokenizer.eos_token
-            # Expand image token to length `image_seq_len`
+                prompt = self.tokenizer.bos_token + prompt
+            if add_eos_token:
+                prompt += self.tokenizer.eos_token
             image_seq_len = image_seq_len if image_seq_len is not None else self.image_seq_len
-            prompt_strings.append((self.image_token * image_seq_len).join(split_sample))
+            prompt_strings.append((self.image_token * image_seq_len) + prompt)
 
         image_inputs = self.image_processor(images=images, **output_kwargs["images_kwargs"])
         text_inputs = self.tokenizer(text=prompt_strings, **output_kwargs["text_kwargs"])
