@@ -129,7 +129,7 @@ class DetikzifyGenerator:
     def __init__(
         self,
         model,
-        tokenizer,
+        processor,
         image: Image.Image,
         metric: Optional[Metric] = None,
         compile_timeout: Optional[int] = 60,
@@ -140,11 +140,11 @@ class DetikzifyGenerator:
         strict: bool = False, # if True, treat recoverable errors same as fatal errors when computing scores
         **gen_kwargs,
     ):
-        self.newline_id = tokenizer.text("\n", add_special_tokens=False)["input_ids"][-1]
-        assert tokenizer.text.decode(self.newline_id) == "\n"
+        self.newline_id = processor.tokenizer("\n", add_special_tokens=False)["input_ids"][-1]
+        assert processor.tokenizer.decode(self.newline_id) == "\n"
 
         self.model = model
-        self.tokenizer = tokenizer
+        self.processor = processor
         self.metric = metric
         self.image = image
         self.compile_timeout = compile_timeout
@@ -160,9 +160,8 @@ class DetikzifyGenerator:
         self.control = control or ExplicitAbort()
         self.montecarlo = MonteCarlo(
             root_node=WideNode(
-                tokenizer.text(
-                    tokenizer.text.convert_ids_to_tokens(model.config.patch_token_id) * model.config.num_patches,
-                    add_special_tokens=False,
+                processor(
+                    images=self.image,
                     return_tensors="pt",
                 ).input_ids.to(model.device).squeeze(),
                 exploration=self.exploration
@@ -189,14 +188,14 @@ class DetikzifyGenerator:
     def generate(self, input_ids: torch.Tensor, streamer: Optional[BaseStreamer] = None, **gen_kwargs) -> torch.Tensor:
         streamers, numel = StreamerList(filter(bool, [streamer, self.streamer])), input_ids.numel()
         max_length = {**self.model.generation_config.to_dict(), **self.gen_kwargs, **gen_kwargs}["max_length"]
-        if (numel and input_ids[-1] == self.tokenizer.text.eos_token_id) or numel >= max_length:
+        if (numel and input_ids[-1] == self.processor.tokenizer.eos_token_id) or numel >= max_length:
             streamers.end()
             return input_ids # prevent continuing generation after eos
         with torch.inference_mode():
             return self.model.generate(
                 input_ids=input_ids.unsqueeze(0),
                 bad_words_ids=[[self.model.config.patch_token_id]],
-                images=self.tokenizer.image(self.image).unsqueeze(0).to(self.model.device, self.model.dtype),
+                pixel_values=self.processor(self.image, return_tensors="pt").pixel_values.to(self.model.device),
                 streamer=streamers,
                 **self.gen_kwargs,
                 **gen_kwargs
@@ -238,7 +237,7 @@ class DetikzifyGenerator:
     def decode(self, token_ids: torch.Tensor) -> TikzDocument:
         return TikzDocument(
             timeout=self.compile_timeout,
-            code=self.tokenizer.text.decode(
+            code=self.processor.decode(
                 token_ids=token_ids,
                 skip_special_tokens=True
             )
@@ -311,7 +310,7 @@ class DetikzifyPipeline:
     def __init__(
         self,
         model,
-        tokenizer,
+        processor,
         # hyperparams based on "a systematic evaluation of large language models of code"
         temperature: float = 0.8,
         top_p: float = 0.95,
@@ -321,10 +320,10 @@ class DetikzifyPipeline:
         **gen_kwargs,
     ):
         self.model = model
-        self.tokenizer = tokenizer
+        self.processor = processor
 
         if metric == "model": # SelfSim
-            self.metric = ImageSim.from_detikzify(model, sync_on_compute=False)
+            self.metric = ImageSim.from_detikzify(model, processor, sync_on_compute=False)
         elif metric == "fast": # Compiler Diagnostics
             self.metric = None
         else:
@@ -334,7 +333,7 @@ class DetikzifyPipeline:
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
-            max_length=tokenizer.text.model_max_length,
+            max_length=processor.tokenizer.model_max_length,
             do_sample=True,
             compile_timeout=compile_timeout,
             **gen_kwargs
@@ -357,7 +356,7 @@ class DetikzifyPipeline:
         """
         generator = DetikzifyGenerator(
             model=self.model,
-            tokenizer=self.tokenizer,
+            processor=self.processor,
             image=self.load(image, preprocess=preprocess),
             **self.gen_kwargs,
             **gen_kwargs
@@ -388,7 +387,7 @@ class DetikzifyPipeline:
         """
         generator = DetikzifyGenerator(
             model=self.model,
-            tokenizer=self.tokenizer,
+            processor=self.processor,
             metric=self.metric,
             mcts_timeout=timeout or None,
             image=self.load(image, preprocess=preprocess),

@@ -1,14 +1,14 @@
 from functools import cached_property
 from typing import List
-from dreamsim import dreamsim
+
 from PIL import Image
-from timm import create_model as create_model
+from dreamsim import dreamsim
+from huggingface_hub import cached_assets_path
 import torch
 from torch.cuda import is_available as is_cuda_available, is_bf16_supported
 from torchmetrics import Metric
-from huggingface_hub import cached_assets_path
 
-from ..util import expand, infer_device
+from ..util import expand, infer_device, load
 
 class DreamSim(Metric):
     """Perceptual image similarity using DreamSim"""
@@ -75,9 +75,10 @@ class DreamSim(Metric):
             img1, img2 = [img1], [img2]
 
         for i1, i2 in zip(img1, img2): # type: ignore
+            i1, i2 = load(i1), load(i2)
             if self.preprocess:
-                i1 = expand(i1, max(i1.size), do_trim=True)
-                i2 = expand(i2, max(i2.size), do_trim=True)
+                i1 = expand(load(i1), max(i1.size), do_trim=True)
+                i2 = expand(load(i2), max(i2.size), do_trim=True)
             i1 = self.processor(i1).to(self.device, self.dtype)
             i2 = self.processor(i2).to(self.device, self.dtype)
             with torch.inference_mode():

@@ -73,19 +73,19 @@ def inference(
     algorithm: str,
     compile_timeout: int,
 ):
-    model, tokenizer = cached_load(
+    model, processor = cached_load(
         base_model=model_name,
         device_map="auto",
         torch_dtype=bfloat16 if is_cuda_available() and is_bf16_supported() else float16,
         attn_implementation="flash_attention_2" if is_flash_attn_2_available() else None,
     )
     control, streamer = ExplicitAbort(), TextIteratorStreamer(
-        tokenizer=tokenizer.text, # type: ignore
+        tokenizer=processor.tokenizer,
         skip_special_tokens=True
     )
     pipe = DetikzifyPipeline(
         model=model,
-        tokenizer=tokenizer,
+        processor=processor,
         streamer=streamer,
         temperature=max(float(temperature), float_info.epsilon),
         top_p=top_p,
@@ -261,7 +261,7 @@ def build_ui(
                 preprocess = gr.Checkbox(
                     value=True,
                     label="Preprocess image",
-                    info="Trim whitespace and pad image to square."
+                    info="Trim whitespace and pad image to square. If off, behavior depends on the image processor."
                 )
 
         mcts_programs, gallery_index = gr.State([]), gr.State(-1)

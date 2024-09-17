@@ -103,15 +103,15 @@ def generate(pipe, image, strict=False, timeout=None, **tqdm_kwargs):
 
 def predict(model_name, base_model, testset, cache_file=None, timeout=None, key="image"):
     predictions, worker_preds = list(), list()
-    model, tokenizer = load_model(
-        base_model=base_model,
+    model, processor = load_model(
+        model_name_or_path=base_model,
         device_map=RANK,
         torch_dtype=bfloat16 if is_cuda_available() and is_bf16_supported() else float16,
         attn_implementation="flash_attention_2" if is_flash_attn_2_available() else None,
     )
     # if we don't have a timeout (i.e., only run mcts until we obtain smth compileable), we can use fast metrics
     metric_type = "model" if timeout else "fast"
-    pipe = DetikzifyPipeline(model=model, tokenizer=tokenizer, metric=metric_type)
+    pipe = DetikzifyPipeline(model=model, processor=processor, metric=metric_type)
     if cache_file and isfile(cache_file):
         with open(cache_file) as f:
             # disable timeout as we know that the (last) images compile
@@ -122,7 +122,7 @@ def predict(model_name, base_model, testset, cache_file=None, timeout=None, key=
         for item in tqdm(worker_chunk, desc=f"{model_name.title()} ({RANK})", disable=RANK!=0):
             tikz = generate(pipe, image=item[key], timeout=timeout, position=1, leave=False, disable=RANK!=0)
             worker_preds.append(tikz)
-        del model, tokenizer, pipe
+        del model, processor, pipe
     finally:
         dist.all_gather_object(gathered:=WORLD_SIZE * [None], worker_preds)
         predictions.extend(interleave(gathered))

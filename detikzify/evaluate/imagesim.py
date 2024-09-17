@@ -3,16 +3,13 @@ from math import tanh
 from typing import List, Literal
 
 from PIL import Image
-from numpy import clip
 from ot.lp import emd2
-from timm import create_model as create_model
-from timm.data import create_transform, resolve_data_config
 import torch
 from torch.cuda import is_available as is_cuda_available, is_bf16_supported
 import torch.nn.functional as F
 from torchmetrics import Metric
 from torchmetrics.functional import pairwise_cosine_similarity
-from transformers import PreTrainedModel
+from transformers import AutoModel, PreTrainedModel, AutoImageProcessor, ProcessorMixin
 
 from ..util import expand, infer_device, load
 
@@ -23,9 +20,8 @@ class ImageSim(Metric):
 
     def __init__(
         self,
-        model_name: str = "vit_so400m_patch14_siglip_384.webli",
+        model_name: str = "google/siglip-so400m-patch14-384",
         mode: Literal["cos", "emd"] = "cos",
-        emd_layer: int = -3,
         preprocess: bool = True,
         device: str = infer_device(),
         dtype=torch.bfloat16 if is_cuda_available() and is_bf16_supported() else torch.float16,
@@ -33,7 +29,6 @@ class ImageSim(Metric):
     ):
         super().__init__(**kwargs)
         self.model_name = model_name
-        self.emd_layer = emd_layer
         self.preprocess = preprocess
         self.mode = mode
         self._device = device
@@ -47,26 +42,27 @@ class ImageSim(Metric):
 
     @cached_property
     def model(self):
-        model = create_model(self.model_name, pretrained=True)
-        return model.to(self.device, self.dtype).requires_grad_(False)
+        # even if we instantiate with from_detikzify we still end up in this function
+        if (model:=dict(self.named_children()).get("model")) is None:
+            model = AutoModel.from_pretrained(self.model_name, torch_dtype=self.dtype)
+            model = model.vision_model.to(self.device)
+        return model
 
     @cached_property
     def processor(self):
-        vision_config = self.model.pretrained_cfg
-        data_config = resolve_data_config(vision_config)
-        return create_transform(**data_config, is_training=False)
+        return AutoImageProcessor.from_pretrained(self.model_name)
 
     @classmethod
-    def from_detikzify(cls, model: PreTrainedModel, *args, **kwargs):
+    def from_detikzify(cls, model: PreTrainedModel, processor: ProcessorMixin, *args, **kwargs):
         derived_kwargs = dict(
-            emd_layer = model.config.feature_layer,
-            model_name = model.config.vision_config['architecture'],
+            model_name = model.name_or_path,
             device = model.device,
             dtype = model.dtype,
         )
 
         imagesim = cls(*args, **(derived_kwargs | kwargs))
-        imagesim.model = model.get_model().get_vision_tower()
+        imagesim.model = model.model.vision_model
+        imagesim.processor = processor.image_processor # type: ignore
         return imagesim
 
     def get_vision_features(self, image: Image.Image | str):
@@ -75,12 +71,11 @@ class ImageSim(Metric):
             image = expand(image, max(image.size), do_trim=True)
 
         with torch.inference_mode():
-            pixels = self.processor(image).unsqueeze(0).to(self.device, self.dtype) # type: ignore
+            encoding = self.processor(image, return_tensors="pt").to(self.device, self.dtype)
             if self.mode == "cos":
-                return self.model(pixels)[0]
+                return self.model(**encoding).pooler_output.squeeze()
             else:
-                layers = [clip(self.emd_layer, -(depth:=len(self.model.blocks)), depth-1) % depth]
-                return self.model.get_intermediate_layers(pixels, n=layers, norm=True)[0][0]
+                return self.model(**encoding).last_hidden_state.squeeze()
 
     def get_similarity(self, img1: Image.Image | str, img2: Image.Image | str):
         img1_feats = self.get_vision_features(img1)
