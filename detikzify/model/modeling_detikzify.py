@@ -201,7 +201,7 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
             raise ValueError("You have to specify either input_ids or inputs_embeds")
 
         past_seen_tokens = 0
-        if use_cache:
+        if use_cache and past_key_values is not None:
             past_seen_tokens = past_key_values.get_seq_length()
 
         if inputs_embeds is not None and input_ids is None and past_seen_tokens == 0:
