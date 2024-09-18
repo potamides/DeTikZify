@@ -1,10 +1,11 @@
+from datasets import DownloadManager
 from safetensors.torch import load_file
 from transformers import (
     AutoConfig,
-    AutoImageProcessor,
     AutoModelForVision2Seq,
     AutoProcessor,
 )
+from transformers.utils.hub import is_remote_url
 
 from .configuration_detikzify import *
 from .modeling_detikzify import *
@@ -24,9 +25,14 @@ def load(model_name_or_path, modality_projector=None, **kwargs):
     model = AutoModelForVision2Seq.from_pretrained(model_name_or_path, **kwargs)
 
     if modality_projector is not None:
-        model.load_state_dict(load_file(
-            filename=modality_projector,
-            device=str(model.device)
-        ))
+        if is_remote_url(modality_projector):
+            modality_projector = DownloadManager().download(modality_projector)
+        model.load_state_dict(
+            state_dict=load_file(
+                filename=modality_projector, # type: ignore
+                device=str(model.device)
+            ),
+            strict=False
+        )
 
     return model, processor
