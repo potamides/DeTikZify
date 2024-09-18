@@ -82,6 +82,7 @@ def train(
             learning_rate=learning_rate,
             torch_compile=True,
             bf16=True,
+            tf32=True,
             logging_steps=10,
             lr_scheduler_type="cosine",
             optim="adamw_torch" if deepspeed else "adamw_torch_fused",
@@ -94,7 +95,6 @@ def train(
         )
     )
 
-    model.config.use_cache = False
     trainer.train()
 
     model.save_pretrained(
