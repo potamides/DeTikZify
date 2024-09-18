@@ -38,7 +38,7 @@ class ImageSketchDataset(Dataset, TrainerCallback):
     def tokenize(self, batch):
         for idx, sketches in enumerate(batch['sketches']):
             if (sketch:=sketches[self.cur_epoch]):
-                batch[idx]['image'] = Image.open(BytesIO(sketch['bytes']))
+                batch['image'][idx] = Image.open(BytesIO(sketch['bytes'])).convert("RGB")
 
         return tokenize(
             batch=batch,
@@ -81,7 +81,8 @@ def train(
 
     dataset = ImageSketchDataset(dataset, processor)
     logger.info(f"Dataset size before filtering out too long examples: {len(dataset)}")
-    dataset.filter(lambda ex: len(ex['input_ids'].squeeze()) <= processor.tokenizer.model_max_length)
+    eos_token_id, model_max_length = processor.tokenizer.eos_token_id, processor.tokenizer.model_max_length
+    dataset.filter(lambda ex: (ex['input_ids'] == eos_token_id).nonzero() < model_max_length)
     logger.info(f"Dataset size after filtering out too long examples: {len(dataset)}")
 
     last_checkpoint = None
@@ -122,7 +123,8 @@ def train(
             output_dir=output_dir,
             deepspeed=deepspeed,
         ),
-        callbacks=[SplitEpochSaveCallback(step_size=0.25)]
+        callbacks=[SplitEpochSaveCallback(step_size=0.25)],
+        data_collator=lambda batch: batch
     )
 
     model.config.use_cache = False
