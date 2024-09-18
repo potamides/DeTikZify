@@ -3,7 +3,6 @@ from argparse import ArgumentParser
 from os.path import basename, join
 
 from datasets import Dataset
-import torch.distributed as dist
 from transformers import set_seed
 from transformers.utils.logging import enable_explicit_format, set_verbosity_info
 
@@ -24,7 +23,7 @@ def parse_args():
     )
     argument_parser.add_argument(
         "--projector",
-        help="url or path to a pretrained projector for clip soft prompts for multimodal models"
+        help="url or path to a pretrained modality projector"
     )
     argument_parser.add_argument("--datikz",
         required=True,
@@ -47,7 +46,6 @@ def parse_args():
 if __name__ == "__main__":
     set_verbosity_info()
     enable_explicit_format()
-    dist.init_process_group()
     set_seed(0)
 
     args = parse_args()
