@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 # Adapted from
-# https://github.com/andimarafioti/transformers/commit/9b09c481c4c39a172156b7ee44dc642160d0e809
+# https://github.com/andimarafioti/transformers/commit/d49b73bda09631df3df79b7b1e92fc9d886b3af4
 
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
@@ -145,6 +145,10 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
             make_inputs_require_grads
         )
 
+    def disable_input_require_grads(self):
+        self._text_require_grads_hook.remove()
+        self._vision_require_grads_hook.remove()
+
     def get_input_embeddings(self):
         return self.text_model.get_input_embeddings()
 
@@ -159,11 +163,13 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
     ):
         num_images, _, vision_hidden_size = image_hidden_states.shape
         special_image_token_mask = input_ids == self.image_token_id
+        #  Fixes RuntimeError: a leaf Variable that requires grad is being used in an in-place operation.
+        new_inputs_embeds = inputs_embeds.clone()
         reshaped_image_hidden_states = image_hidden_states.view(-1, vision_hidden_size)
         # cast to the dtype of the input_embeds to support quantized models
         reshaped_image_hidden_states = reshaped_image_hidden_states.to(inputs_embeds.dtype)
-        inputs_embeds[special_image_token_mask] = reshaped_image_hidden_states
-        return inputs_embeds
+        new_inputs_embeds[special_image_token_mask] = reshaped_image_hidden_states
+        return new_inputs_embeds
 
     def forward(
         self,
@@ -278,6 +284,10 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel):
             make_inputs_require_grads
         )
 
+    def disable_input_require_grads(self):
+        self._text_require_grads_hook.remove()
+        self._vision_require_grads_hook.remove()
+
     def get_input_embeddings(self):
         return self.model.text_model.get_input_embeddings()
 
@@ -366,7 +376,13 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel):
         )
 
     def prepare_inputs_for_generation(
-        self, input_ids, past_key_values=None, attention_mask=None, inputs_embeds=None, **kwargs
+        self,
+        input_ids,
+        past_key_values=None,
+        attention_mask=None,
+        inputs_embeds=None,
+        num_logits_to_keep=None,
+        **kwargs,
     ):
         past_length = 0
         # Omit tokens covered by past_key_values
@@ -409,9 +425,14 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel):
         else:
             model_inputs = {"input_ids": input_ids}
 
+        if num_logits_to_keep is not None:
+            model_inputs["num_logits_to_keep"] = num_logits_to_keep
+
         image_hidden_states = kwargs.get("image_hidden_states", None)
         if image_hidden_states is None:
             pixel_values = kwargs.get("pixel_values", None)
+        else:
+            pixel_values = None
 
         model_inputs.update(
             {
