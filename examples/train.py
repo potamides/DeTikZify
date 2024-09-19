@@ -30,7 +30,7 @@ def parse_args():
         help="path to the DaTikZ train split processed by the ./sketchify script (in parquet format)",
     )
     argument_parser.add_argument("--output",
-        default="models/detikzify",
+        required=True,
         help="directory where to write the model files",
     )
     argument_parser.add_argument("--deepspeed",

@@ -44,7 +44,7 @@ def parse_args():
         help="the amount of figures to use for pretraining"
     )
     argument_parser.add_argument("--output",
-        default="models/projector",
+        required=True,
         help="directory where to write the model files",
     )
     argument_parser.add_argument("--deepspeed",
