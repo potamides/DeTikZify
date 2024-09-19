@@ -95,6 +95,9 @@ def train(
         )
     )
 
+    if trainer.is_deepspeed_enabled and trainer.accelerator.state.deepspeed_plugin.hf_ds_config.is_zero3():
+        raise ValueError("Pretraining with zero stage 3 is not yet supported.")
+
     trainer.train()
 
     model.save_pretrained(
