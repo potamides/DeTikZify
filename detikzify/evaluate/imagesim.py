@@ -38,7 +38,7 @@ class ImageSim(Metric):
         self.add_state("n_samples", torch.tensor(0, dtype=torch.long), dist_reduce_fx="sum")
 
     def __str__(self):
-        return self.__class__.__name__ + ("(EMD)" if self.mode == "emd" else "")
+        return self.__class__.__name__ + (" (EMD)" if self.mode == "emd" else "")
 
     @cached_property
     def model(self):
