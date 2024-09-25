@@ -74,7 +74,7 @@ def train(
     learning_rate: float = 3e-5,
     gradient_checkpointing: bool = False,
 ):
-    assert num_epochs == len(dataset[0]['sketches'])
+    assert num_epochs <= len(dataset[0]['sketches'])
     gradient_accumulation_steps = batch_size // micro_batch_size
     if WORLD_SIZE != 1:
         gradient_accumulation_steps = gradient_accumulation_steps // WORLD_SIZE
