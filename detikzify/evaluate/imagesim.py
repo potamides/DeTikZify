@@ -21,7 +21,7 @@ class ImageSim(Metric):
     def __init__(
         self,
         model_name: str = "google/siglip-so400m-patch14-384",
-        mode: Literal["cos", "emd"] = "cos",
+        mode: Literal["emd", "cos"] = "emd",
         preprocess: bool = True,
         device: str = infer_device(),
         dtype=torch.bfloat16 if is_cuda_available() and is_bf16_supported() else torch.float16,
@@ -38,7 +38,7 @@ class ImageSim(Metric):
         self.add_state("n_samples", torch.tensor(0, dtype=torch.long), dist_reduce_fx="sum")
 
     def __str__(self):
-        return self.__class__.__name__ + (" (EMD)" if self.mode == "emd" else "")
+        return self.__class__.__name__ + (" (EMD)" if self.mode == "emd" else "(COS)")
 
     @cached_property
     def model(self):
