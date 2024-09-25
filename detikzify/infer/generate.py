@@ -1,8 +1,11 @@
 from collections import deque
 from dataclasses import dataclass
+from functools import cached_property
 from math import sqrt
 from multiprocessing.pool import ThreadPool
+from re import sub
 from time import time
+from types import SimpleNamespace as Namespace
 from typing import Any, Dict, Generator, List, Literal, Optional, Set, Tuple, Union
 
 from PIL import Image
@@ -22,6 +25,7 @@ Numeric = Union[int, float]
 @dataclass(frozen=True)
 class NodeState:
     token_ids: torch.Tensor
+    num_lines: int = 0
 
     def __eq__(self, other: Any) -> bool:
         try:
@@ -63,6 +67,10 @@ class WideNode(Node):
     @property
     def token_ids(self):
         return self.state.token_ids
+
+    @property
+    def num_lines(self):
+        return self.state.num_lines
 
 
 class DynMinMaxNorm:
@@ -140,9 +148,6 @@ class DetikzifyGenerator:
         strict: bool = False, # if True, treat recoverable errors same as fatal errors when computing scores
         **gen_kwargs,
     ):
-        self.newline_id = processor.tokenizer("\n", add_special_tokens=False)["input_ids"][-1]
-        assert processor.tokenizer.decode(self.newline_id) == "\n"
-
         self.model = model
         self.processor = processor
         self.metric = metric
@@ -201,7 +206,25 @@ class DetikzifyGenerator:
                 **gen_kwargs
             ).squeeze()
 
-    def rollout(self, input_ids: torch.Tensor) -> Generator[torch.Tensor, None, None]:
+    @cached_property
+    def newlineinfo(self):
+        # tokens can potentially contain multiple newlines, so we need special
+        # handling when we want to map error lines to tokens
+        newlineinfo = dict()
+        for token_id in self.processor.tokenizer.vocab.values():
+            # NOTE: Newline normalization might lead to inaccurate estimations
+            # for windows line separators (if split over two tokens). However,
+            # the likeliness of such tokens being generated (not in training
+            # data) as well as the potential impact is negligible.
+            # https://www.overleaf.com/learn/latex/Articles/An_introduction_to_%5Cendlinechar%3A_How_TeX_reads_lines_from_text_files
+            token = sub(r"\r\n|\r", r"\n", self.processor.decode([token_id]))
+            if (num_lines:=token.count("\n")):
+                newlineinfo[token_id] = Namespace(num_lines=num_lines, trailing=token.endswith("\n"))
+        assert newlineinfo
+        return newlineinfo
+
+    def rollout(self, state: NodeState) -> Generator[Tuple[torch.Tensor, int], None, None]:
+        input_ids, num_lines, continuation = state.token_ids, state.num_lines, False
         with ThreadPool(processes=1) as thread:
             streamer = TokenStreamer()
             async_result = thread.apply_async(
@@ -215,15 +238,20 @@ class DetikzifyGenerator:
             )
 
             try:
-                prev, line = input_ids, list()
+                prev_ids, line = input_ids, list()
                 for token in streamer:
                     line.append(token)
-                    if token == self.newline_id:
-                        prev = torch.cat((prev, torch.tensor(line, device=prev.device)))
+                    if info:=self.newlineinfo.get(token):
+                        # continuations (newline followed by text in a single
+                        # token) don't appear in the llama 3.1 tokenizer, but
+                        # handling them now makes this code future proof
+                        num_lines += info.num_lines - continuation
+                        continuation = not info.trailing
+                        prev_ids = torch.cat((prev_ids, torch.tensor(line, device=prev_ids.device)))
                         line.clear()
-                        yield prev
+                        yield prev_ids, num_lines
                 if line:
-                    yield torch.cat((prev, torch.tensor(line, device=prev.device)))
+                    yield torch.cat((prev_ids, torch.tensor(line, device=prev_ids.device))), num_lines - continuation
             except (GeneratorExit, KeyboardInterrupt):
                 self.control.abort()
                 raise
@@ -258,8 +286,9 @@ class DetikzifyGenerator:
 
     def child_finder(self, node: WideNode, montecarlo: MonteCarlo):
         new_nodes = list()
-        for new_state in (rollout:=self.rollout(node.token_ids)):
-            if (new_node:=WideNode(new_state, exploration=self.exploration)).state in self.failed_rollouts:
+        for new_state in (rollout:=self.rollout(node.state)):
+            new_node = WideNode(*new_state, exploration=self.exploration)
+            if new_node.state in self.failed_rollouts:
                 new_nodes.extend(self.failed_rollouts[new_node.state])
                 rollout.close()
                 break
@@ -272,20 +301,20 @@ class DetikzifyGenerator:
         tikz = self.decode((new_nodes or [node])[-1].token_ids)
         skip_idx = round(sqrt(len(new_nodes)))
 
-        if scorable:=(not tikz.compiled_with_errors if self.strict else tikz.is_rasterizable):
+        if scorable:=(tikz.is_rasterizable and not (self.strict and tikz.compiled_with_errors)):
             for new_node in new_nodes[:skip_idx]:
                 node.add_child(node:=new_node)
-        else:
-            # in rare cases there are no compile errors even though the tikzpic
-            # is not rasterizable because only cropping failed -> use [0]
-            error_idx = max(0, max(1, errorln:=min(tikz.errors or [0])) - 1 - node.depth)
-            for new_node in new_nodes[:min(error_idx, skip_idx)]:
-                node.add_child(node:=new_node)
-             # 1. only save a failed rollout when we can locate the error
-             # 2. in rare cases error_idx can be larger than the amount of
-             # nodes due to the way we handle newlines
-            if errorln and error_idx < len(new_nodes):
-                self.failed_rollouts[new_nodes[error_idx].state] = new_nodes[error_idx:]
+        # Only process failed rollouts when we can locate the error (errorln !=
+        # 0). In rare cases there is no error information even though the
+        # tikzpic is not rasterizable because only cropping failed -> use [0].
+        elif errorln:=min(tikz.errors or [0]):
+            for idx, new_node in enumerate(new_nodes):
+                ends_with_eol = self.newlineinfo.get(new_node.token_ids[-1])
+                if new_node.num_lines < errorln and idx < skip_idx:
+                    node.add_child(node:=new_node)
+                elif new_node.num_lines > errorln or (new_node.num_lines == errorln and ends_with_eol):
+                    self.failed_rollouts[new_node.state] = new_nodes[idx:]
+                    break
 
         if self.metric:
             score = self.score(tikz.rasterize()) if scorable else -1 # type: ignore
