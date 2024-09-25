@@ -12,7 +12,7 @@ from torch.cuda import is_available as is_cuda_available, is_bf16_supported
 from transformers.utils import is_flash_attn_2_available
 
 from ..infer import DetikzifyPipeline
-from ..util import TextIteratorStreamer, ExplicitAbort
+from ..util import ExplicitAbort, TextIteratorStreamer, load
 from .helpers import (
     GeneratorLock,
     MctsOutputs,
@@ -100,7 +100,7 @@ def inference(
                 yield from simulate(
                     pipe=pipe,
                     streamer=streamer,
-                    image=image['composite'],
+                    image=load(image['composite']),
                     preprocess=preprocess,
                     exploration=mcts_exploration,
                     strict=mcts_strict,
@@ -112,7 +112,7 @@ def inference(
                 yield from sample(
                     pipe=pipe,
                     streamer=streamer,
-                    image=image['composite'],
+                    image=load(image['composite']),
                     preprocess=preprocess,
                     thread=thread,
                     tmpdir=tmpdir
