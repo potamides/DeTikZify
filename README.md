@@ -109,12 +109,13 @@ If DeTi*k*Zify has been beneficial for your research or applications, we kindly
 request you to acknowledge its use by citing it as follows:
 
 ```bibtex
-@inproceedings{belouadi2024detikzify,
-    title={{DeTikZify}: Synthesizing Graphics Programs for Scientific Figures and Sketches with {TikZ}},
-    author={Jonas Belouadi and Simone Paolo Ponzetto and Steffen Eger},
-    booktitle={The Thirty-eighth Annual Conference on Neural Information Processing Systems},
-    year={2024},
-    url={https://openreview.net/forum?id=bcVLFQCOjc}
+@misc{belouadi2024detikzify,
+      title={DeTikZify: Synthesizing Graphics Programs for Scientific Figures and Sketches with TikZ},
+      author={Jonas Belouadi and Simone Paolo Ponzetto and Steffen Eger},
+      year={2024},
+      eprint={2405.15306},
+      archivePrefix={arXiv},
+      primaryClass={cs.CL}
 }
 ```
 
