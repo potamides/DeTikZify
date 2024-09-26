@@ -1,7 +1,10 @@
+from base64 import decodebytes
 from io import BytesIO
+from os.path import isfile
 
 from PIL import Image, ImageChops, ImageOps
-from transformers.image_utils import load_image
+import requests
+from transformers.utils.hub import is_remote_url
 
 def convert(image, filetype):
     image.save(imgbytes:=BytesIO(), format=filetype)
@@ -25,5 +28,28 @@ def expand(image, size, do_trim=False, bg="white"):
     image = trim(image, bg=bg) if do_trim else image
     return ImageOps.pad(image, (size, size), color=bg, method=Image.Resampling.LANCZOS)
 
-def load(image: Image.Image | str, bg="white"):
-    return  remove_alpha(load_image(image), bg=bg)
+#  based on transformers/image_utils.py (added support for rgba images)
+def load(image: Image.Image | str, bg="white", timeout=None):
+    if isinstance(image, str):
+        if is_remote_url(image):
+            image = Image.open(BytesIO(requests.get(image, timeout=timeout).content))
+        elif isfile(image):
+            image = Image.open(image)
+        else:
+            if image.startswith("data:image/"):
+                image = image.split(",")[1]
+            try:
+                b64 = decodebytes(image.encode())
+                image = Image.open(BytesIO(b64))
+            except Exception as e:
+                raise ValueError(
+                    "Incorrect image source. "
+                    "Must be a valid URL starting with `http://` or `https://`, "
+                    "a valid path to an image file, or a base64 encoded string. "
+                    f"Got {image}. Failed with {e}"
+                )
+    elif isinstance(image, Image.Image):
+        image = image
+
+    image = ImageOps.exif_transpose(image) # type: ignore
+    return  remove_alpha(image, bg=bg)
