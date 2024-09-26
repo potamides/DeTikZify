@@ -18,7 +18,8 @@ dependencies = [
   "pdf2image~=1.17.0",
   "pdfCropMargins~=2.1.4",
   # webui
-  "gradio~=4.42.0",
+  "gradio~=4.38.1",
+  "fastapi~=0.112.4", # https://github.com/gradio-app/gradio/issues/9278
   # evaluate
   "POT~=0.9.4",
   "torchmetrics~=1.4.1",
