@@ -9,7 +9,7 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Dict, Optional, Union
 
 from PIL import Image
-import fitz
+import pymupdf
 from pdf2image.pdf2image import convert_from_bytes
 from pdfCropMargins import crop
 from transformers.utils import logging
@@ -37,7 +37,7 @@ class TikzDocument:
         return self.compile().status
 
     @property
-    def pdf(self) -> Optional[fitz.fitz.Document]: # type: ignore
+    def pdf(self) -> Optional[pymupdf.Document]: # type: ignore
         return self.compile().pdf
 
     @property
@@ -101,7 +101,7 @@ class TikzDocument:
 
                     def try_save_last_page():
                         try:
-                            doc = fitz.open(tmppdf) # type: ignore
+                            doc = pymupdf.open(tmppdf)
                             doc.select([len(doc)-1])
                             doc.save(outpdf)
                         except:
@@ -133,7 +133,7 @@ class TikzDocument:
                     croppdf = f"{tmpfile.name}.crop"
                     crop(["-gsf", "-c", "gb", "-p", "0", "-a", "-1", "-o", croppdf, outpdf], quiet=True)
                     if isfile(croppdf):
-                        output['pdf'] = fitz.open(croppdf) # type: ignore
+                        output['pdf'] = pymupdf.open(croppdf)
 
                 except FileNotFoundError:
                     logger.error("Missing dependencies: Did you install TeX Live?")

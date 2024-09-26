@@ -74,7 +74,7 @@ def inference(
     compile_timeout: int,
 ):
     model, processor = cached_load(
-        base_model=model_name,
+        model_name_or_path=model_name,
         device_map="auto",
         torch_dtype=bfloat16 if is_cuda_available() and is_bf16_supported() else float16,
         attn_implementation="flash_attention_2" if is_flash_attn_2_available() else None,

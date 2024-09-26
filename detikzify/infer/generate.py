@@ -199,8 +199,8 @@ class DetikzifyGenerator:
         with torch.inference_mode():
             return self.model.generate(
                 input_ids=input_ids.unsqueeze(0),
-                bad_words_ids=[[self.model.config.patch_token_id]],
-                pixel_values=self.processor(self.image, return_tensors="pt").pixel_values.to(self.model.device),
+                bad_words_ids=[[self.model.config.image_token_id]],
+                pixel_values=self.processor(images=self.image, return_tensors="pt").pixel_values.to(self.model.device),
                 streamer=streamers,
                 **self.gen_kwargs,
                 **gen_kwargs
