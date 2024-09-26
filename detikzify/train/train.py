@@ -135,10 +135,9 @@ def train(
 
     if trainer.is_deepspeed_enabled:
         # https://huggingface.co/docs/accelerate/v0.11.0/en/deepspeed#saving-and-loading
-        logger.warning(
-            "Don't forget to run zero_to_fp32.py in the output directory, "
-            "if your deepspeed config requires it."
-        )
+        from deepspeed.utils.zero_to_fp32 import load_state_dict_from_zero_checkpoint
+        last_checkpoint = get_last_checkpoint(output_dir)
+        load_state_dict_from_zero_checkpoint(trainer.model.float(), last_checkpoint)
 
     trainer.save_model(output_dir)
     trainer.save_state()
