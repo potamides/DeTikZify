@@ -42,13 +42,13 @@ def parse_args():
     )
     argument_parser.add_argument(
         "--trainset",
-        required=True,
-        help="path to the datikz train set (in parquet format)",
+        default="nllg/datikz-v3",
+        help="path or name of the DaTikZ train set",
     )
     argument_parser.add_argument(
         "--testset",
         required=True,
-        help="path to the datikz test set (in parquet format)",
+        help="path to the DaTikZ test split processed by the ./sketchify script (in parquet format)",
     )
     argument_parser.add_argument(
         "--output",
@@ -180,7 +180,7 @@ if __name__ == "__main__":
     dist.init_process_group(timeout=timedelta(days=3))
     args = parse_args()
 
-    trainset = load_dataset("parquet", data_files=args.trainset, split="train")
+    trainset = load_dataset(args.trainset, split="train")
     testset = load_dataset("parquet", data_files={"test": args.testset}, split="test").sort("caption") # type: ignore
 
     predictions = defaultdict(list)
