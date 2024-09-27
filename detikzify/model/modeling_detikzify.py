@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 # Adapted from
-# https://github.com/andimarafioti/transformers/commit/d49b73bda09631df3df79b7b1e92fc9d886b3af4
+# https://github.com/huggingface/transformers/commit/e1b150862e66e16acf951edfa13206ffcd1032be
 
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Union
@@ -89,7 +89,7 @@ class DetikzifyPreTrainedModel(PreTrainedModel):
 
     def _init_weights(self, module):
         std = (
-            self.config.text_config.initializer_range
+            self.config.initializer_range
             if hasattr(self.config, "initializer_range")
             else self.config.text_config.initializer_range
         )

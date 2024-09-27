@@ -1,4 +1,4 @@
-# Copyright 2024 The HuggingFace Inc. team.
+# Copyright 2024 the HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -13,7 +13,7 @@
 # limitations under the License.
 #
 # Adapted from
-# https://github.com/andimarafioti/transformers/commit/9b09c481c4c39a172156b7ee44dc642160d0e809
+# https://github.com/huggingface/transformers/commit/e1b150862e66e16acf951edfa13206ffcd1032be
 
 from typing import List, Optional, TYPE_CHECKING, Union, Unpack
 

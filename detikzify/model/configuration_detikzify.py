@@ -12,7 +12,7 @@
 # limitations under the License.
 #
 # Adapted from
-# https://github.com/andimarafioti/transformers/commit/9b09c481c4c39a172156b7ee44dc642160d0e809
+# https://github.com/huggingface/transformers/commit/e1b150862e66e16acf951edfa13206ffcd1032be
 
 import os
 from typing import Union
