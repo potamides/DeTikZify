@@ -3,10 +3,13 @@ from argparse import ArgumentParser
 from sys import flags
 
 from PIL import UnidentifiedImageError
+from torch import bfloat16, float16
+from torch.cuda import is_available as is_cuda_available, is_bf16_supported
+from transformers import TextStreamer, set_seed
+from transformers.utils import is_flash_attn_2_available
 
 from detikzify.infer import DetikzifyPipeline
 from detikzify.model import load
-from transformers import set_seed, TextStreamer
 
 try:
     import readline # patches input()
@@ -26,7 +29,12 @@ def parse_args():
 
 if __name__ == "__main__":
     set_seed(0)
-    model, processor = load(parse_args().model_name_or_path, device_map="auto")
+    model, processor = load(
+        **vars(parse_args()),
+        device_map="auto",
+        torch_dtype=bfloat16 if is_cuda_available() and is_bf16_supported() else float16,
+        attn_implementation="flash_attention_2" if is_flash_attn_2_available() else None,
+    )
     pipe = DetikzifyPipeline(
         model=model,
         processor=processor,
