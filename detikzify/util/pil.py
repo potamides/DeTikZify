@@ -32,7 +32,9 @@ def expand(image, size, do_trim=False, bg="white"):
 def load(image: Image.Image | str, bg="white", timeout=None):
     if isinstance(image, str):
         if is_remote_url(image):
-            image = Image.open(BytesIO(requests.get(image, timeout=timeout).content))
+            # https://stackoverflow.com/a/69791396
+            headers = {'user-agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:68.0) Gecko/20100101 Firefox/68.0'}
+            image = Image.open(BytesIO(requests.get(image, timeout=timeout, headers=headers).content))
         elif isfile(image):
             image = Image.open(image)
         else:
