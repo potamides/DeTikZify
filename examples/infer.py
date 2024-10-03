@@ -58,5 +58,5 @@ if __name__ == "__main__":
                 pipe(image=image)
             except KeyboardInterrupt:
                 pass
-            except (UnidentifiedImageError, FileNotFoundError, AttributeError):
+            except (UnidentifiedImageError, FileNotFoundError, AttributeError, ValueError):
                 print("Error: Cannot identify image file!")
