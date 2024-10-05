@@ -7,6 +7,7 @@ from math import ceil, floor
 from os import environ
 from random import choice, gauss, random, sample
 
+from PIL import Image
 from datasets import load_dataset
 from diffusers import DiffusionPipeline
 import torch
