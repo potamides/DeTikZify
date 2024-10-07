@@ -33,6 +33,7 @@ from transformers import (
 from transformers.modeling_outputs import ModelOutput
 from transformers.utils import logging
 
+from .adapter import CrossAttentionAdapterMixin
 from .configuration_detikzify import DetikzifyConfig
 
 
@@ -270,7 +271,7 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
         )
 
 
-class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel, GenerationMixin):
+class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel, GenerationMixin, CrossAttentionAdapterMixin):
     _tied_weights_keys = ["lm_head.weight"]
 
     def __init__(self, config):
