@@ -22,6 +22,7 @@ dependencies = [
   "pdfCropMargins~=2.0.3",
   # webui
   "gradio~=4.36.0",
+  "fastapi~=0.112.4", # https://github.com/gradio-app/gradio/issues/9278
   # evaluate
   "POT~=0.9.3",
   "torchmetrics~=1.3.2",
