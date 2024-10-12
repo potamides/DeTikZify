@@ -1,4 +1,4 @@
-from base64 import decodebytes
+from base64 import b64decode
 from io import BytesIO
 from os.path import isfile
 
@@ -29,8 +29,11 @@ def expand(image, size, do_trim=False, bg="white"):
     return ImageOps.pad(image, (size, size), color=bg, method=Image.Resampling.LANCZOS)
 
 #  based on transformers/image_utils.py (added support for rgba images)
-def load(image: Image.Image | str, bg="white", timeout=None):
-    if isinstance(image, str):
+def load(image: Image.Image | str | bytes, bg="white", timeout=None):
+    if isinstance(image, bytes):
+        # assume image bytes and open
+        image = Image.open(BytesIO(image))
+    elif isinstance(image, str):
         if is_remote_url(image):
             # https://stackoverflow.com/a/69791396
             headers = {'user-agent': 'Mozilla/5.0 (X11; Linux x86_64; rv:68.0) Gecko/20100101 Firefox/68.0'}
@@ -38,20 +41,16 @@ def load(image: Image.Image | str, bg="white", timeout=None):
         elif isfile(image):
             image = Image.open(image)
         else:
-            if image.startswith("data:image/"):
-                image = image.split(",")[1]
             try:
-                b64 = decodebytes(image.encode())
-                image = Image.open(BytesIO(b64))
+                image.removeprefix("data:image/")
+                image = Image.open(BytesIO(b64decode(image)))
             except Exception as e:
                 raise ValueError(
                     "Incorrect image source. "
                     "Must be a valid URL starting with `http://` or `https://`, "
-                    "a valid path to an image file, or a base64 encoded string. "
-                    f"Got {image}. Failed with {e}"
+                    "a valid path to an image file, bytes, or a base64 encoded "
+                    f"string. Got {image}. Failed with {e}"
                 )
-    elif isinstance(image, Image.Image):
-        image = image
 
     image = ImageOps.exif_transpose(image) # type: ignore
     return  remove_alpha(image, bg=bg)
