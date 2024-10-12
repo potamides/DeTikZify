@@ -3,5 +3,5 @@ from os.path import dirname, isdir, join
 
 def load_dataset(path, *args, **kwargs):
     if isdir(local := join(dirname(__file__), path)):
-        return _load_dataset(local, *args, **kwargs)
+        return _load_dataset(local, *args, trust_remote_code=True, **kwargs)
     return _load_dataset(path, *args, **kwargs)
