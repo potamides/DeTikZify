@@ -32,7 +32,7 @@ evaluate = [
   "Pygments~=2.18.0",
   "crystalbleu~=0.1.0",
   "sacremoses~=0.1.1",
-  "dreamsim~=0.1.3"
+  "dreamsim~=0.2.1"
 ]
 examples = [
   "detikzify[evaluate]",
