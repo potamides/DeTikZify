@@ -37,9 +37,8 @@ logger = logging.get_logger(__name__)
 class DetikzifyProcessorKwargs(ProcessingKwargs, total=False):
     _defaults = {
         "text_kwargs": {
-            "add_special_tokens": True,
+            "add_special_tokens": False,
             "padding": False,
-            "is_split_into_words": False,
         },
     }
 
