@@ -113,7 +113,7 @@ if __name__ == "__main__":
         batch_size=WORLD_SIZE * 1000,
         desc="Sketchify (train)",
         fn_kwargs=dict(
-            num_epochs=3,
+            num_epochs=5,
             ratio=0.5,
             sketchifier=(sketchifier:=Sketchifier())
         )

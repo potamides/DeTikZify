@@ -70,8 +70,8 @@ def train(
     # training hyperparams
     batch_size: int = 128,
     micro_batch_size: int = 1,
-    num_epochs: int = 3,
-    learning_rate: float = 3e-5,
+    num_epochs: int = 5,
+    learning_rate: float = 5e-5,
     gradient_checkpointing: bool = False,
 ):
     assert num_epochs <= len(dataset[0]['sketches'])
