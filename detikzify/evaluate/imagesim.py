@@ -56,6 +56,7 @@ class ImageSim(Metric):
     def from_detikzify(cls, model: PreTrainedModel, processor: ProcessorMixin, *args, **kwargs):
         derived_kwargs = dict(
             model_name = model.name_or_path,
+            mode = getattr(model.config, "pooling_mode", "emd"),
             device = model.device,
             dtype = model.dtype,
         )

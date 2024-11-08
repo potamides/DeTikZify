@@ -15,7 +15,7 @@
 # Adapted from
 # https://github.com/huggingface/transformers/commit/e1b150862e66e16acf951edfa13206ffcd1032be
 
-from typing import List, Optional, TYPE_CHECKING, Union, Unpack
+from typing import List, Optional, Union, Unpack
 
 from transformers.feature_extraction_utils import BatchFeature
 from transformers.image_utils import ImageInput, make_list_of_images
@@ -26,10 +26,6 @@ from transformers.tokenization_utils_base import (
     TextInput,
 )
 from transformers.utils import logging
-
-
-if TYPE_CHECKING:
-    from transformers.tokenization_utils_base import PreTokenizedInput
 
 logger = logging.get_logger(__name__)
 
@@ -45,7 +41,7 @@ class DetikzifyProcessorKwargs(ProcessingKwargs, total=False):
 
 class DetikzifyProcessor(ProcessorMixin):
     attributes = ["image_processor", "tokenizer"]
-    image_processor_class = "SiglipImageProcessor"
+    image_processor_class = "AutoImageProcessor"
     tokenizer_class = "AutoTokenizer"
 
     def __init__(self, image_processor, tokenizer=None, image_seq_len: int = 300, image_token: str = "<|reserved_special_token_2|>", **kwargs):

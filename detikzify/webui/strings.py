@@ -1,5 +1,7 @@
 from os.path import basename
 
+from transformers import is_timm_available
+
 BANNER = '''\
 <h1>DeTi<i>k</i>Zify: Synthesizing Graphics Programs for Scientific Figures and Sketches with Ti<i>k</i>Z</h1>
 
@@ -26,6 +28,17 @@ MODELS = {
         "nllg/detikzify-v2-3b",
     ]
 }
+
+if is_timm_available():
+    MODELS |= {
+        basename(model).replace("detikzify", "detikzify-v1"): model
+        for model in [
+            "nllg/detikzify-ds-7b",
+            "nllg/detikzify-cl-7b",
+            "nllg/detikzify-ds-1.3b",
+            "nllg/detikzify-tl-1.1b",
+        ]
+    }
 
 ALGORITHMS = {
     "mcts": "MCTS",
