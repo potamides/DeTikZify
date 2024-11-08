@@ -96,7 +96,8 @@ def info_once(message):
 class GeneratorLock:
     """
     Ensure that only one instance of a given generator is active.
-    Useful when a previous invocation was canceled.
+    Useful when a previous invocation was canceled. See
+    https://github.com/gradio-app/gradio/issues/8503 for more information.
     """
     def __init__(self, gen_func):
         self.gen_func = gen_func

@@ -31,6 +31,8 @@ class TikzDocument:
     def __init__(self, code: str, timeout: Optional[int] = 60):
         self.code = code
         self.timeout = timeout
+        # https://stackoverflow.com/a/68550238
+        self.compile = cache(self.compile)
 
     @property
     def status(self) -> int:
@@ -84,7 +86,6 @@ class TikzDocument:
     def set_engines(cls, engines: Union[str, list]):
         cls.engines = [engines] if isinstance(engines, str) else engines
 
-    @cache
     def compile(self) -> "Output":
         output = dict()
         with TemporaryDirectory() as tmpdirname:

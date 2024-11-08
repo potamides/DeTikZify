@@ -17,7 +17,7 @@ from transformers.generation.streamers import BaseStreamer
 from ..evaluate.imagesim import ImageSim
 from ..mcts.montecarlo import MonteCarlo
 from ..mcts.node import Node
-from ..util import ExplicitAbort, StreamerList, TokenStreamer, cast_cache, expand, load
+from ..util import ExplicitAbort, StreamerList, TokenStreamer, cache_cast, expand, load
 from .tikz import TikzDocument
 
 Numeric = Union[int, float]
@@ -175,6 +175,10 @@ class DetikzifyGenerator:
 
         self.montecarlo.child_finder = self.child_finder # type: ignore
 
+        # https://stackoverflow.com/a/68550238
+        self.decode = cache_cast(lambda token_ids: tuple(token_ids.tolist()))(self.decode)
+        self.score = cache_cast(lambda image: image.tobytes())(self.score)
+
     def __call__(self, *args, **kwargs):
         return self.simulate(*args, **kwargs)
 
@@ -261,7 +265,6 @@ class DetikzifyGenerator:
             finally:
                 async_result.wait()
 
-    @cast_cache(lambda token_ids: tuple(token_ids.tolist()))
     def decode(self, token_ids: torch.Tensor) -> TikzDocument:
         return TikzDocument(
             timeout=self.compile_timeout,
@@ -271,7 +274,6 @@ class DetikzifyGenerator:
             )
         )
 
-    @cast_cache(lambda image: image.tobytes())
     def score(self, image: Image.Image) -> Numeric:
         assert self.metric
         self.metric.update(image, self.image)
