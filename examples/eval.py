@@ -94,7 +94,7 @@ def generate(pipe, image, strict=False, timeout=None, **tqdm_kwargs):
     """Run MCTS until the generated tikz code compiles."""
     start, success, tikzpics = time(), False, set()
     for score, tikzpic in tqdm(pipe.simulate(image=image), desc="Try", **tqdm_kwargs):
-        tikzpics.add((score, tikzpic))
+        tikzpics.add((score, tikzpic.code))
         if not tikzpic.compiled_with_errors if strict else tikzpic.is_rasterizable:
             success = True
         if success and (not timeout or time() - start >= timeout):
@@ -114,8 +114,7 @@ def predict(model_name, base_model, testset, cache_file=None, timeout=None, key=
     pipe = DetikzifyPipeline(model=model, processor=processor, metric=metric_type)
     if cache_file and isfile(cache_file):
         with open(cache_file) as f:
-            # disable timeout as we know that the (last) images compile
-            predictions = [[TikzDocument(code, timeout=None) for code in sample] for sample in load_json(f)]
+            predictions = load_json(f)
     try:
         worker_chunk = list(chunk(list(testset)[len(predictions):], WORLD_SIZE))[RANK]
         # FIXME: right now there only is a progress bar for Rank 0
@@ -128,7 +127,7 @@ def predict(model_name, base_model, testset, cache_file=None, timeout=None, key=
         predictions.extend(interleave(gathered))
         if cache_file and RANK == 0:
             with open(cache_file, 'w') as f:
-                dump([[p.code for p in ps] for ps in predictions], f)
+                dump(predictions, f)
     return predictions
 
 def load_metrics(trainset, measure_throughput=False, **kwargs):
@@ -187,7 +186,7 @@ if __name__ == "__main__":
     for model_name, path in map(lambda s: s.split('='), tqdm(args.path, desc="Predicting")):
         if path.endswith("json"):
             with open(path) as f:
-                predictions[model_name] = [[TikzDocument(code, None) for code in sample] for sample in load_json(f)]
+                predictions[model_name] = load_json(f)
         else:
             cache_file = join(args.cache_dir, f'{model_name}.json') if args.cache_dir else None
             predictions[model_name] = predict(
@@ -203,6 +202,10 @@ if __name__ == "__main__":
         scores = dict()
         metrics = load_metrics(trainset['code'], measure_throughput=args.timeout is not None, sync_on_compute=False) # type: ignore
         for model_name, prediction in tqdm(predictions.items(), desc="Computing metrics", total=len(predictions)):
-            scores[model_name] = metrics(references=testset, predictions=prediction)
+            scores[model_name] = metrics(
+                references=testset,
+                # disable timeout as we know that the (last) images compile
+                predictions=[[TikzDocument(code, None) for code in pred] for pred in prediction]
+            )
         with open(args.output, "w") as file:
             dump(scores, file)
