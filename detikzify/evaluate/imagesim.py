@@ -21,7 +21,7 @@ class ImageSim(Metric):
     def __init__(
         self,
         model_name: str = "google/siglip-so400m-patch14-384",
-        mode: Literal["emd", "cos"] = "emd",
+        mode: Literal["emd", "cos", "cos_avg"] = "emd",
         preprocess: bool = True,
         device: str = infer_device(),
         dtype=torch.bfloat16 if is_cuda_available() and is_bf16_supported() else torch.float16,
@@ -38,7 +38,7 @@ class ImageSim(Metric):
         self.add_state("n_samples", torch.tensor(0, dtype=torch.long), dist_reduce_fx="sum")
 
     def __str__(self):
-        return self.__class__.__name__ + (" (EMD)" if self.mode == "emd" else "(COS)")
+        return self.__class__.__name__ + f" ({self.mode.upper().replace('_', '-')})"
 
     @cached_property
     def model(self):
@@ -63,7 +63,7 @@ class ImageSim(Metric):
 
         imagesim = cls(*args, **(derived_kwargs | kwargs))
         imagesim.model = model.model.vision_model
-        imagesim.processor = processor.image_processor # type: ignore
+        imagesim.processor = getattr(processor, "processor", processor).image_processor # type: ignore
         return imagesim
 
     def get_vision_features(self, image: Image.Image | str):
@@ -75,6 +75,8 @@ class ImageSim(Metric):
             encoding = self.processor(image, return_tensors="pt").to(self.device, self.dtype)
             if self.mode == "cos":
                 return self.model(**encoding).pooler_output.squeeze()
+            elif self.mode == "cos_avg":
+                return self.model(**encoding).last_hidden_state.squeeze().mean(dim=0)
             else:
                 return self.model(**encoding).last_hidden_state.squeeze()
 
