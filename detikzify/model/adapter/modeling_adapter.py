@@ -357,28 +357,26 @@ class CrossAttentionAdapter(PreTrainedModel):
     _supports_flash_attn_2 = True
     _supports_sdpa = True
 
-    def __init__(self, config, input_hidden_size = None, cross_attn_every_n_layers = 1):
+    def __init__(self, config, input_hidden_size, cross_attn_every_n_layers = 1):
         super().__init__(config)
         self.num_patches = (config.image_size // config.patch_size) ** 2
         self._use_flash_attention_2 = config._attn_implementation == "flash_attention_2"
+        self.norm = nn.LayerNorm(input_hidden_size, eps=config.layer_norm_eps)
         self.layers = nn.ModuleList([ # type: ignore
             CrossAttentionLayer(config)
             if (layer_idx + 1) % cross_attn_every_n_layers == 0
             else None
             for layer_idx in range(config.num_hidden_layers)
         ])
-
-        if input_hidden_size is not None:
-            self.connector = nn.Linear(
-                input_hidden_size,
-                config.hidden_size,
-                bias=False
-            )
+        self.connector = nn.Linear(
+            input_hidden_size,
+            config.hidden_size,
+            bias=True
+        )
 
     def connect(self, raw_inputs):
-        if hasattr(self, "connector"):
-            return self.connector(raw_inputs)
-        return raw_inputs
+        normed_inputs = self.norm(raw_inputs)
+        return self.connector(normed_inputs)
 
     def prepare_4d_attention_mask(self, attention_mask, dtype):
         if attention_mask is not None and not self._use_flash_attention_2:
@@ -446,12 +444,17 @@ class CrossAttentionAdapterMixin:
 
     def load_embedding_model(self, model_or_model_name_or_path, **model_kwargs):
         if isinstance(model_or_model_name_or_path, str):
-            return AutoModel.from_pretrained(
+            model = AutoModel.from_pretrained(
                 pretrained_model_name_or_path=model_or_model_name_or_path,
                 torch_dtype=self.dtype,
                 **model_kwargs
             )
-        return model_or_model_name_or_path.to(self.dtype)
+        else:
+            model = model_or_model_name_or_path
+        # HACK: we want to use our own layer norm in the connector, so remove
+        # output layer norm
+        model.norm = nn.Identity()
+        return model.to(self.dtype)
 
     def add_hooks(self):
         handles, adapter_inputs, cross_attention = list(), dict(), dict()
