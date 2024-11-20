@@ -9,9 +9,9 @@ from torch.cuda import is_available as is_cuda_available, is_bf16_supported
 import torch.nn.functional as F
 from torchmetrics import Metric
 from torchmetrics.functional import pairwise_cosine_similarity
-from transformers import AutoModel, PreTrainedModel, AutoImageProcessor, ProcessorMixin
+from transformers import AutoImageProcessor, AutoModel, PreTrainedModel, ProcessorMixin
 
-from ..util import expand, infer_device, load
+from ..util import expand, infer_device, load, unwrap_processor
 
 class ImageSim(Metric):
     """Perceptual image similarity using visual encoders."""
@@ -63,7 +63,7 @@ class ImageSim(Metric):
 
         imagesim = cls(*args, **(derived_kwargs | kwargs))
         imagesim.model = model.model.vision_model
-        imagesim.processor = getattr(processor, "processor", processor).image_processor # type: ignore
+        imagesim.processor = unwrap_processor(processor).image_processor
         return imagesim
 
     def get_vision_features(self, image: Image.Image | str):

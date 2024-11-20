@@ -89,3 +89,13 @@ class StreamerList(list, streamers.BaseStreamer):
     def end(self):
         for streamer in self:
             streamer.end()
+
+def unwrap_processor(processor):
+    """
+    Unwrap a processor, nested processors can happen when using the adapter
+    processor.
+    """
+    if hasattr(processor, "processor"):
+        return unwrap_processor(processor.processor)
+    else:
+        return processor
