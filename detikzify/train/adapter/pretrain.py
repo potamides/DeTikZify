@@ -1,15 +1,18 @@
 from functools import partial
 import os
-from typing import Literal
+from typing import Dict, Literal
 
 from PIL import Image
 import torch
-from transformers import Trainer, TrainingArguments
+from transformers import Trainer, TrainingArguments, is_torch_xla_available
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import logging
 
 from ...model.adapter.modeling_adapter import CrossAttentionAdapterMixin
 from ...util import SplitEpochSaveCallback
+
+if is_torch_xla_available():
+    import torch_xla.core.xla_model as xm # type: ignore
 
 logger = logging.get_logger("transformers")
 
@@ -21,15 +24,25 @@ class AdapterTrainer(Trainer):
     def __init__(
         self,
         model: CrossAttentionAdapterMixin,
-        loss_term: Literal["avg", "pool", "patch"] = "patch",
+        loss_term: Literal["avg", "pool", "patch", "layer"] = "patch",
         pool_train_head: bool = False,
         *args,
         **kwargs,
     ):
         self.term = loss_term
-        self.loss_function = torch.nn.HuberLoss() if self.term == "patch" else torch.nn.MSELoss()
+        self.loss_function = torch.nn.HuberLoss() if self.term in ["patch", "layer"] else torch.nn.MSELoss()
         self.train_head = self.term == "pool" and pool_train_head
         super().__init__(self.prepare_model(model), *args, **kwargs) # type: ignore
+
+        if self.term == "layer":
+            self.loss_layers = sorted({len(self.model.adapter.layers)} | {
+                idx for idx, layer in enumerate(self.model.adapter.layers, 1) if layer is not None
+            })
+            self.loss_weights = [
+                w / sum(range(1, len(self.loss_layers) + 1))
+                for w in range(1, len(self.loss_layers) + 1)
+            ]
+            self.control.layer_losses = {layer: 0 for layer in self.loss_layers}
 
     def prepare_model(self, model):
         for name, param in model.named_parameters():
@@ -52,10 +65,10 @@ class AdapterTrainer(Trainer):
         with torch.no_grad():
             teacher_output = model(
                 pixel_values=inputs.pop("labels"),
-                output_hidden_states=self.term=="patch"
+                output_hidden_states=self.term=="layer"
             )
         student_output = model(
-            output_hidden_states=self.term=="patch",
+            output_hidden_states=self.term=="layer",
             **inputs,
         )
 
@@ -64,18 +77,68 @@ class AdapterTrainer(Trainer):
                 student_output.last_hidden_state.mean(dim=1),
                 teacher_output.last_hidden_state.mean(dim=1),
             )
-        if self.term == "pool":
+        elif self.term == "pool":
             loss = self.loss_function(
                 student_output.pooler_output,
                 teacher_output.pooler_output,
             )
-        else:
+        elif self.term == "patch":
             loss = self.loss_function(
-                student_output.hidden_states[-1],
-                teacher_output.hidden_states[-1]
+                student_output.last_hidden_state,
+                teacher_output.last_hidden_state
             )
+        else:
+            loss = 0
+            for layer, weight in zip(self.loss_layers, self.loss_weights):
+                layer_loss = self.loss_function(
+                    student_output.hidden_states[layer],
+                    teacher_output.hidden_states[layer]
+                )
+                loss += weight * layer_loss
+
+                log_layer_loss = layer_loss.mean() if self.args.n_gpu > 1 else layer_loss
+                log_layer_loss = log_layer_loss.detach() / self.args.gradient_accumulation_steps
+                self.control.layer_losses[layer] += log_layer_loss
 
         return (loss, student_output) if return_outputs else loss
+
+    # https://github.com/naba89/custom_hf_trainer
+    def _maybe_log_save_evaluate(self, tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval):
+        if self.control.should_log and self.state.global_step > self._globalstep_last_logged:
+            if is_torch_xla_available():
+                xm.mark_step() # type: ignore
+
+            logs: Dict[str, float] = {}
+
+            # all_gather + mean() to get average loss over all processes
+            tr_loss_scalar = self._nested_gather(tr_loss).mean().item() # type: ignore
+
+            # reset tr_loss to zero
+            tr_loss -= tr_loss
+
+            logs["loss"] = round(tr_loss_scalar / (self.state.global_step - self._globalstep_last_logged), 4)
+            if grad_norm is not None:
+                logs["grad_norm"] = grad_norm.detach().item() if isinstance(grad_norm, torch.Tensor) else grad_norm
+            logs["learning_rate"] = self._get_learning_rate()
+            if self.term == "layer":
+                for k, v in self.control.layer_losses.items():
+                    layer_loss = self._nested_gather(v).mean().item() # type: ignore
+                    logs[f"layer_loss_{k}"] = round(layer_loss / (self.state.global_step - self._globalstep_last_logged), 4)
+                    self.control.layer_losses[k] -= v # reset the loss
+
+            self._total_loss_scalar += tr_loss_scalar
+            self._globalstep_last_logged = self.state.global_step
+            self.store_flos()
+
+            self.log(logs)
+
+        metrics = None
+        if self.control.should_evaluate:
+            metrics = self._evaluate(trial, ignore_keys_for_eval)
+
+        if self.control.should_save:
+            self._save_checkpoint(model, trial, metrics=metrics)
+            self.control = self.callback_handler.on_save(self.args, self.state, self.control)
 
 def transform_images(batch, processor, bg="white"):
     label_ids = processor(images=batch['image'], return_tensors="pt")
