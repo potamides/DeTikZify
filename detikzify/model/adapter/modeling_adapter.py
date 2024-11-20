@@ -374,6 +374,8 @@ class CrossAttentionAdapter(PreTrainedModel):
             bias=True
         )
 
+        self.post_init()
+
     def connect(self, raw_inputs):
         normed_inputs = self.norm(raw_inputs)
         return self.connector(normed_inputs)
@@ -403,7 +405,7 @@ class CrossAttentionAdapterMixin:
             config=getattr(self.config, "vision_config", self.config),
             torch_dtype=self.dtype,
             **adapter_kwargs
-        ).to(self.device)
+        ).to(self.device, self.dtype)
         self.handles = self.add_hooks()
 
     def load_cross_attn_adapter(
@@ -425,7 +427,7 @@ class CrossAttentionAdapterMixin:
                 config=getattr(self.config, "vision_config", self.config),
                 torch_dtype=self.dtype,
                 **adapter_kwargs
-            )
+            ).to(self.dtype)
         except OSError:
             name_or_path = adapter_name_or_path or basename(self.embedding_model.name_or_path)
             self.adapter = CrossAttentionAdapter.from_pretrained(
@@ -436,7 +438,7 @@ class CrossAttentionAdapterMixin:
                 subfolder=f"adapters/{name_or_path}",
                 torch_dtype=self.dtype,
                 **adapter_kwargs
-            )
+            ).to(self.dtype)
         if "device_map" not in adapter_kwargs:
             self.embedding_model = self.embedding_model.to(self.device)
             self.adapter = self.adapter.to(self.device)
@@ -508,3 +510,6 @@ class CrossAttentionAdapterMixin:
 
     def save_cross_attn_adapter(self, *args, **kwargs):
         return self.adapter.save_pretrained(*args, **kwargs)
+
+    def has_adapter(self):
+        return hasattr(self, "adapter")

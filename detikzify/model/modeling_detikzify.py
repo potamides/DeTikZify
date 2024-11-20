@@ -426,6 +426,15 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel, GenerationMixi
         if image_hidden_states is not None:
             pixel_values = None
 
+        # support model.generate method with adapters
+        if self.has_adapter():
+            model_inputs.update(
+                {
+                    "adapter_input_ids": kwargs.get("adapter_input_ids"),
+                    "adapter_attention_mask": kwargs.get("adapter_attention_mask")
+                }
+            )
+
         model_inputs.update(
             {
                 "position_ids": position_ids,
@@ -437,6 +446,13 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel, GenerationMixi
             }
         )
         return model_inputs
+
+    def _validate_model_kwargs(self, model_kwargs):
+        # support model.generate method with adapters
+        if self.has_adapter():
+            for key in ['adapter_input_ids', 'adapter_attention_mask']:
+                model_kwargs.pop(key, None)
+        super()._validate_model_kwargs(model_kwargs)
 
     def _update_model_kwargs_for_generation(self, outputs, model_kwargs, is_encoder_decoder, **kwargs):
         model_kwargs = super()._update_model_kwargs_for_generation(
