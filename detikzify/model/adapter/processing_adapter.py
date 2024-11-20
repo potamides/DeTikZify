@@ -24,7 +24,7 @@ class AdapterProcessor(ProcessorMixin):
 
     def __init__(self, processor, tokenizer=None, **kwargs):
         if processor is None:
-            raise ValueError("You need to specify an `image_processor`.")
+            raise ValueError("You need to specify a `processor`.")
         if tokenizer is None:
             raise ValueError("You need to specify a `tokenizer`.")
         super().__init__(processor, tokenizer, **kwargs)
