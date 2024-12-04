@@ -1,19 +1,16 @@
 from io import BytesIO
 import os
+from random import random
 from typing import Dict, List
 
 from PIL import Image
 import torch
 from torch.utils.data import Dataset
-from transformers import (
-    Trainer,
-    TrainerCallback,
-    TrainingArguments,
-)
+from transformers import Trainer, TrainerCallback, TrainingArguments
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import logging
 
-from ..util import SplitEpochSaveCallback
+from ..util import SketchAugment, SplitEpochSaveCallback
 from .pretrain import tokenize
 
 logger = logging.get_logger("transformers")
@@ -26,10 +23,12 @@ class ImageSketchDataset(Dataset, TrainerCallback):
     Dataset which samples sketches instead of images, when a sketch exists
     for the current epoch.
     """
-    def __init__(self, dataset, processor):
+    def __init__(self, dataset, processor, ds_sketch_ratio=.5):
         super().__init__()
         self.processor = processor
         self.dataset = dataset.with_transform(self.tokenize)
+        self.ds_sketch_ratio = ds_sketch_ratio
+        self.sketchify = SketchAugment()
         self.cur_epoch = 0
 
     def __len__(self):
@@ -38,7 +37,10 @@ class ImageSketchDataset(Dataset, TrainerCallback):
     def tokenize(self, batch):
         for idx, sketches in enumerate(batch['sketches']):
             if (sketch:=sketches[self.cur_epoch]):
-                batch['image'][idx] = Image.open(BytesIO(sketch['bytes'])).convert("RGB")
+                if random() >= self.ds_sketch_ratio:
+                    batch['image'][idx] = Image.open(BytesIO(sketch['bytes'])).convert("RGB")
+                else:
+                    batch['image'][idx] = self.sketchify(batch['image'][idx])
 
         return tokenize(
             batch=batch,
@@ -72,6 +74,7 @@ def train(
     micro_batch_size: int = 1,
     num_epochs: int = 5,
     learning_rate: float = 5e-5,
+    sketch_ratio=.5,
     gradient_checkpointing: bool = False,
 ):
     assert num_epochs <= len(dataset[0]['sketches'])
@@ -79,7 +82,7 @@ def train(
     if WORLD_SIZE != 1:
         gradient_accumulation_steps = gradient_accumulation_steps // WORLD_SIZE
 
-    dataset = ImageSketchDataset(dataset, processor)
+    dataset = ImageSketchDataset(dataset, processor, ds_sketch_ratio=sketch_ratio)
     logger.info(f"Dataset size before filtering out too long examples: {len(dataset)}")
     eos_token_id, model_max_length = processor.tokenizer.eos_token_id, processor.tokenizer.model_max_length
     dataset.filter(lambda ex: (ex['input_ids'] == eos_token_id).nonzero() < model_max_length)

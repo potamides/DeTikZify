@@ -8,6 +8,7 @@ readme = "README.md"
 license = {text = "Apache-2.0 License"}
 dependencies = [
   "torch~=2.5.1",
+  "torchvision~=0.20.1",
   "transformers[accelerate,tokenizers]~=4.46.3",
   "datasets~=2.21.0",
   "Pillow~=10.4.0",

@@ -26,6 +26,10 @@ def parse_args():
         required=True,
         help="path to the DaTikZ train split processed by the ./sketchify script (in parquet format)",
     )
+    argument_parser.add_argument("--sketch_ratio",
+        default=.5,
+        help="ratio of synthetic sketches generated through the ./sketchify script or image transforms",
+    )
     argument_parser.add_argument("--output",
         required=True,
         help="directory where to write the model files",
@@ -55,6 +59,7 @@ if __name__ == "__main__":
         model=model,
         processor=processor,
         dataset=datikz,
+        sketch_ratio=args.sketch_ratio,
         output_dir=join(args.output, basename(model.config.name_or_path)), # type: ignore
         gradient_checkpointing=args.gradient_checkpointing,
         deepspeed=args.deepspeed,

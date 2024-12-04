@@ -1,4 +1,5 @@
 from numpy import arange
+from torchvision.transforms import v2
 from transformers import (
     IntervalStrategy,
     TrainerCallback,
@@ -32,3 +33,16 @@ class SplitEpochSaveCallback(TrainerCallback):
             control.should_save = True
 
         return control
+
+class SketchAugment(v2.Compose):
+    def __init__(self):
+        super().__init__([
+            v2.RandomOrder([
+                v2.ElasticTransform(fill=255),
+                v2.JPEG((40, 100)),
+                v2.ColorJitter(brightness=(1, 1.75)),
+                v2.RandomEqualize(),
+                v2.RandomGrayscale()
+            ]),
+            v2.RGB()
+        ])
