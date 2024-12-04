@@ -361,7 +361,6 @@ class CrossAttentionAdapter(PreTrainedModel):
         super().__init__(config)
         self.num_patches = (config.image_size // config.patch_size) ** 2
         self._use_flash_attention_2 = config._attn_implementation == "flash_attention_2"
-        self.norm = nn.LayerNorm(input_hidden_size, eps=config.layer_norm_eps)
         self.layers = nn.ModuleList([ # type: ignore
             CrossAttentionLayer(config)
             if (layer_idx + 1) % cross_attn_every_n_layers == 0
@@ -376,9 +375,8 @@ class CrossAttentionAdapter(PreTrainedModel):
 
         self.post_init()
 
-    def connect(self, raw_inputs):
-        normed_inputs = self.norm(raw_inputs)
-        return self.connector(normed_inputs)
+    def connect(self, inputs):
+        return self.connector(inputs)
 
     def prepare_4d_attention_mask(self, attention_mask, dtype):
         if attention_mask is not None and not self._use_flash_attention_2:
@@ -453,9 +451,6 @@ class CrossAttentionAdapterMixin:
             )
         else:
             model = model_or_model_name_or_path
-        # HACK: we want to use our own layer norm in the connector, so remove
-        # output layer norm
-        model.norm = nn.Identity()
         return model.to(self.dtype)
 
     def add_hooks(self):

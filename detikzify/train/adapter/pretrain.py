@@ -30,7 +30,7 @@ class AdapterTrainer(Trainer):
         **kwargs,
     ):
         self.term = loss_term
-        self.loss_function = torch.nn.HuberLoss() if self.term in ["patch", "layer"] else torch.nn.MSELoss()
+        self.loss_function = torch.nn.MSELoss()
         self.train_head = self.term == "pool" and pool_train_head
         super().__init__(self.prepare_model(model), *args, **kwargs) # type: ignore
 
@@ -38,10 +38,6 @@ class AdapterTrainer(Trainer):
             self.loss_layers = sorted({len(self.model.adapter.layers)} | {
                 idx for idx, layer in enumerate(self.model.adapter.layers, 1) if layer is not None
             })
-            self.loss_weights = [
-                w / sum(range(1, len(self.loss_layers) + 1))
-                for w in range(1, len(self.loss_layers) + 1)
-            ]
             self.control.layer_losses = {layer: 0 for layer in self.loss_layers}
 
     def prepare_model(self, model):
@@ -89,12 +85,13 @@ class AdapterTrainer(Trainer):
             )
         else:
             loss = 0
-            for layer, weight in zip(self.loss_layers, self.loss_weights):
+            for layer in self.loss_layers:
+                last_layer = layer == self.loss_layers[-1]
                 layer_loss = self.loss_function(
-                    student_output.hidden_states[layer],
-                    teacher_output.hidden_states[layer]
+                    student_output.last_hidden_state if last_layer else student_output.hidden_states[layer],
+                    teacher_output.last_hidden_state if last_layer else teacher_output.hidden_states[layer]
                 )
-                loss += weight * layer_loss
+                loss += .5 * (1 if last_layer else 1/(len(self.loss_layers)-1)) * layer_loss
 
                 log_layer_loss = layer_loss.mean() if self.args.n_gpu > 1 else layer_loss
                 log_layer_loss = log_layer_loss.detach() / self.args.gradient_accumulation_steps

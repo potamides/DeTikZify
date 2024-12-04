@@ -44,7 +44,10 @@ def parse_args():
     )
     argument_parser.add_argument("--embedding_model",
         required=True,
-        help="The adapter embedding model checkpoint for weights initialization."
+        help=(
+            "The adapter embedding model checkpoint for weights initialization. "
+            "Only LLaMA 3.1/3.2 models are officially supported."
+        )
     )
     argument_parser.add_argument("--output",
         required=True,
