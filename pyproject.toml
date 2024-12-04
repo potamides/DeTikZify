@@ -34,7 +34,9 @@ evaluate = [
   "crystalbleu~=0.1.0",
   "nltk~=3.9.1",
   "sacremoses~=0.1.1",
-  "dreamsim~=0.2.1"
+  "dreamsim~=0.2.1",
+  "protobuf~=5.28.3",
+  "sentencepiece~=0.2.0"
 ]
 examples = [
   "detikzify[evaluate]",

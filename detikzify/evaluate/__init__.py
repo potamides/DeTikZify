@@ -1,9 +1,17 @@
+# pyright: reportUnsupportedDunderAll=false
 from importlib import import_module
 from typing import Any
 
 from .imagesim import * # this metric is used by MCTS, so it is not optional
 
-__all__ = ["ImageSim", "CrystalBLEU", "KernelInceptionDistance", "TexEditDistance", "DreamSim"] # type: ignore
+__all__ = [
+    "ImageSim",
+    "CrystalBLEU",
+    "KernelInceptionDistance",
+    "TexEditDistance",
+    "DreamSim",
+    "ClipScore",
+]
 
 # lazy import optional metrics (https://peps.python.org/pep-0562/)
 def __getattr__(name) -> Any:
@@ -19,6 +27,9 @@ def __getattr__(name) -> Any:
                 return load("eed")
             case "DreamSim":
                 return load("dreamsim")
+            case "ClipScore":
+                return load("clipscore")
+
     except ImportError:
         raise ValueError(
             "Missing dependencies: "
