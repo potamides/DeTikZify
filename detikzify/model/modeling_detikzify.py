@@ -22,7 +22,14 @@ import torch
 from torch import nn
 from torch.nn import CrossEntropyLoss
 import torch.utils.checkpoint
-from transformers import AutoModel, PreTrainedModel, SiglipVisionModel
+from transformers import (
+    AutoModel,
+    Cache,
+    DynamicCache,
+    GenerationMixin,
+    PreTrainedModel,
+    SiglipVisionModel,
+)
 from transformers.modeling_outputs import ModelOutput
 from transformers.utils import logging
 
@@ -114,18 +121,16 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
         self.padding_idx = self.config.text_config.pad_token_id
         self.vocab_size = self.config.text_config.vocab_size
 
-        self.vision_model = SiglipVisionModel._from_config(
-            config.vision_config, attn_implementation=config._attn_implementation
-        )
+        self.vision_model = SiglipVisionModel._from_config(config.vision_config)
         self.connector = DetikzifyConnector(config)
-        self.text_model = AutoModel.from_config(config.text_config, attn_implementation=config._attn_implementation)
+        self.text_model = AutoModel.from_config(config.text_config)
 
         self.image_seq_len = int(
             ((config.vision_config.image_size // config.vision_config.patch_size) ** 2) / (config.concat_factor)
         )
         self.image_token_id = self.config.image_token_id
 
-        self._use_flash_attention_2 = config._attn_implementation == "flash_attention_2"
+        self._use_flash_attention_2 = config.text_config._attn_implementation == "flash_attention_2"
 
         self.post_init()
 
@@ -177,7 +182,7 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
         input_ids: torch.LongTensor = None,
         attention_mask: Optional[torch.Tensor] = None,
         position_ids: Optional[torch.LongTensor] = None,
-        past_key_values: Optional[List[torch.FloatTensor]] = None,
+        past_key_values: Optional[Cache] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         pixel_values: Optional[torch.FloatTensor] = None,
         image_hidden_states: Optional[torch.FloatTensor] = None,
@@ -208,7 +213,9 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
             raise ValueError("You have to specify either input_ids or inputs_embeds")
 
         past_seen_tokens = 0
-        if use_cache and past_key_values is not None:
+        if use_cache:
+            if past_key_values is None:
+                past_key_values = DynamicCache()
             past_seen_tokens = past_key_values.get_seq_length()
 
         if inputs_embeds is not None and input_ids is None and past_seen_tokens == 0:
@@ -245,6 +252,7 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
             attention_mask=attention_mask,
             position_ids=position_ids,
             past_key_values=past_key_values,
+            use_cache=use_cache,
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
@@ -262,7 +270,7 @@ class DetikzifyModel(DetikzifyPreTrainedModel):
         )
 
 
-class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel):
+class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel, GenerationMixin):
     _tied_weights_keys = ["lm_head.weight"]
 
     def __init__(self, config):
@@ -353,7 +361,9 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel):
             labels = labels.to(logits.device)
             # Shift so that tokens < n predict n
             if attention_mask is not None:
-                shift_attention_mask = attention_mask[..., 1:].to(logits.device)
+                # we use the input attention mask to shift the logits and labels, because it is 2D.
+                # we also crop attn mask in case it is longer, which happens in PrefixTuning with peft
+                shift_attention_mask = attention_mask[:, -(logits.shape[1] - 1) :].to(logits.device)
                 shift_logits = logits[..., :-1, :][shift_attention_mask != 0].contiguous()
                 shift_labels = labels[..., 1:][shift_attention_mask != 0].contiguous()
             else:
@@ -382,35 +392,18 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel):
         past_key_values=None,
         attention_mask=None,
         inputs_embeds=None,
+        cache_position=None,
+        pixel_values=None,
+        image_hidden_states=None,
         num_logits_to_keep=None,
         **kwargs,
     ):
-        past_length = 0
-        # Omit tokens covered by past_key_values
+        # If we have cache: let's slice `input_ids` through `cache_position`, to keep only the unprocessed tokens
         if past_key_values is not None:
-            # Past key values are always initialized with a `Cache` object -> no need for if-else anymore
-            past_length = past_key_values.get_seq_length()
-            max_cache_length = past_key_values.get_max_length()
-
-            # Keep only the unprocessed tokens:
-            # 1 - If the length of the attention_mask exceeds the length of input_ids, then we are in a setting where
-            # some of the inputs are exclusively passed as part of the cache (e.g. when passing input_embeds as
-            # input)
-            if attention_mask is not None and attention_mask.shape[1] > input_ids.shape[1]:
-                input_ids = input_ids[:, -(attention_mask.shape[1] - past_length) :]
-            # 2 - If the past_length is smaller than input_ids', then input_ids holds all input tokens. We can discard
-            # input_ids based on the past_length.
-            elif past_length < input_ids.shape[1]:
-                input_ids = input_ids[:, past_length:]
-            # 3 - Otherwise (past_length >= input_ids.shape[1]), let's assume input_ids only has unprocessed tokens.
-
-            # If we are about to go beyond the maximum cache length, we need to crop the input attention mask.
-            if (
-                max_cache_length is not None
-                and attention_mask is not None
-                and past_length + input_ids.shape[1] > max_cache_length
-            ):
-                attention_mask = attention_mask[:, -max_cache_length:]
+            if inputs_embeds is not None:  # Exception 1
+                input_ids = input_ids[:, -cache_position.shape[0] :]
+            elif input_ids.shape[1] != cache_position.shape[0]:
+                input_ids = input_ids[:, cache_position]
 
         position_ids = kwargs.get("position_ids", None)
         if attention_mask is not None and position_ids is None:
@@ -421,18 +414,15 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel):
                 position_ids = position_ids[:, -input_ids.shape[1] :]
 
         # if `inputs_embeds` are passed, we only want to use them in the 1st generation step
-        if inputs_embeds is not None and past_length == 0:
-            model_inputs = {"inputs_embeds": inputs_embeds}
+        # but IDEFICS requires noth ids and embeds to be present
+        if inputs_embeds is not None and cache_position[0] == 0:
+            model_inputs = {"inputs_embeds": inputs_embeds, "input_ids": input_ids}
         else:
-            model_inputs = {"input_ids": input_ids}
-
+            # The clone here is for the same reason as for `position_ids`.
+            model_inputs = {"input_ids": input_ids.clone(memory_format=torch.contiguous_format), "inputs_embeds": None}
         if num_logits_to_keep is not None:
             model_inputs["num_logits_to_keep"] = num_logits_to_keep
-
-        image_hidden_states = kwargs.get("image_hidden_states", None)
-        if image_hidden_states is None:
-            pixel_values = kwargs.get("pixel_values", None)
-        else:
+        if image_hidden_states is not None:
             pixel_values = None
 
         model_inputs.update(
