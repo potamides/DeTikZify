@@ -204,8 +204,8 @@ if __name__ == "__main__":
         for model_name, prediction in tqdm(predictions.items(), desc="Computing metrics", total=len(predictions)):
             scores[model_name] = metrics(
                 references=testset,
-                # disable timeout as we know that the (last) images compile
-                predictions=[[TikzDocument(code, None) for code in pred] for pred in prediction]
+                # use an unrealistically long timeout as we know that the (last) images compile
+                predictions=[[TikzDocument(code, 600) for code in pred] for pred in prediction]
             )
         with open(args.output, "w") as file:
             dump(scores, file)
