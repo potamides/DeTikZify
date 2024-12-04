@@ -17,40 +17,64 @@ its outputs without the need for additional training.
 
 https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3ccb65880cd3
 
+## News
+* **2024-12-05**: We release [DeTi*k*Zify<sub>v2</sub>
+  (8b)](https://huggingface.co/nllg/detikzify-v2-8b), our latest model which
+  surpasses all previous versions in our evaluation and make it the new default
+  model in our [Hugging Face
+  Space](https://huggingface.co/spaces/nllg/DeTikZify). Check out the [model
+  card](https://huggingface.co/nllg/detikzify-v2-8b-preview#model-card-for-detikzifyv2-8b)
+  for more information.
+* **2024-09-24**: DeTi*k*Zify was accepted at [NeurIPS
+  2024](https://neurips.cc/Conferences/2024) as a [spotlight
+  paper](https://neurips.cc/virtual/2024/poster/94474)!
+
 ## Installation
 
 > [!TIP]
 > If you encounter difficulties with installation and inference on your own
 > hardware, consider visiting our [Hugging Face
-> Space](https://huggingface.co/spaces/nllg/DeTikZify) (if the space is
-> restarting the first run might take 10-15 minutes to download and load the
-> model). Should you experience long queues, you have the option to
+> Space](https://huggingface.co/spaces/nllg/DeTikZify) (restarting the space
+> might take a few minutes). Should you experience long queues, you have the
+> option to
 > [duplicate](https://huggingface.co/spaces/nllg/DeTikZify?duplicate=true) it
 > with a paid private GPU runtime for a more seamless experience. Additionally,
 > you can try our demo on [Google
 > Colab](https://colab.research.google.com/drive/1hPWqucbPGTavNlYvOBvSNBAwdcPZKe8F).
 > However, setting up the environment there might take some time, and the free
-> tier only supports inference for the 1b models. Do not forget to read our
-> [usage tips](https://github.com/potamides/DeTikZify/tree/main/detikzify/webui#usage-tips)!
+> tier only supports inference for the 1b models.
 
 The Python package of DeTi*k*Zify can be easily installed using
 [pip](https://pip.pypa.io/en/stable):
 ```sh
-pip install 'detikzify @ git+https://github.com/potamides/DeTikZify'
+pip install 'detikzify[legacy] @ git+https://github.com/potamides/DeTikZify'
 ```
-Or, if your goal is to run the included [examples](examples), clone the
-repository and install it in editable mode like this:
+The `[legacy]` extra is only required if you plan to use the
+DeTi*k*Zify<sub>v1</sub> models. If you only plan to use
+DeTi*k*Zify<sub>v2</sub> you can remove it. If your goal is to run the included
+[examples](examples), it is easier to clone the repository and install it in
+editable mode like this:
  ```sh
 git clone https://github.com/potamides/DeTikZify
 pip install -e DeTikZify[examples]
  ```
 In addition, DeTi*k*Zify requires a full
 [TeX Live 2023](https://www.tug.org/texlive) installation,
-[ghostscript](https://www.ghostscript.com), and,
+[ghostscript](https://www.ghostscript.com), and
 [poppler](https://poppler.freedesktop.org) which you have to install through
 your package manager or via other means.
 
 ## Usage
+
+> [!TIP]
+> For interactive use and general [usage
+> tips](https://github.com/potamides/DeTikZify/tree/main/detikzify/webui#usage-tips),
+> we recommend checking out our [web UI](detikzify/webui), which can be started
+> directly from the command line (use `--help` for a list of all options):
+> ```sh
+> python -m detikzify.webui --light
+> ```
+
 If all required dependencies are installed, the full range of DeTi*k*Zify
 features such as compiling, rendering, and saving Ti*k*Z graphics, and
 MCTS-based inference can be accessed through its programming interface:
@@ -59,13 +83,12 @@ from operator import itemgetter
 
 from detikzify.model import load
 from detikzify.infer import DetikzifyPipeline
-import torch
 
 image = "https://w.wiki/A7Cc"
 pipeline = DetikzifyPipeline(*load(
-    base_model="nllg/detikzify-ds-7b",
+    model_name_or_path="nllg/detikzify-v2-8b",
     device_map="auto",
-    torch_dtype=torch.bfloat16,
+    torch_dtype="bfloat16",
 ))
 
 # generate a single TikZ program
@@ -83,12 +106,6 @@ for score, fig in pipeline.simulate(image=image, timeout=600):
 # save the best TikZ program
 best = sorted(figs, key=itemgetter(0))[-1][1]
 best.save("fig.tex")
-```
-For interactive use and additional usage tips, we recommend checking out our
-[web UI](detikzify/webui), which can be started from the command line (use
-`--help` for a list of all options):
-```sh
-python -m detikzify.webui --light
 ```
 More involved examples, for example for evaluation and training, can be found
 in the [examples](examples) folder.
@@ -109,18 +126,19 @@ If DeTi*k*Zify has been beneficial for your research or applications, we kindly
 request you to acknowledge its use by citing it as follows:
 
 ```bibtex
-@misc{belouadi2024detikzify,
-      title={DeTikZify: Synthesizing Graphics Programs for Scientific Figures and Sketches with TikZ},
-      author={Jonas Belouadi and Simone Paolo Ponzetto and Steffen Eger},
-      year={2024},
-      eprint={2405.15306},
-      archivePrefix={arXiv},
-      primaryClass={cs.CL}
+@inproceedings{belouadi2024detikzify,
+    title={{DeTikZify}: Synthesizing Graphics Programs for Scientific Figures and Sketches with {TikZ}},
+    author={Jonas Belouadi and Simone Paolo Ponzetto and Steffen Eger},
+    booktitle={The Thirty-eighth Annual Conference on Neural Information Processing Systems},
+    year={2024},
+    url={https://openreview.net/forum?id=bcVLFQCOjc}
 }
 ```
 
 ## Acknowledgments
 The implementation of the DeTi*k*Zify model architecture is based on
-[Idefics 3](https://huggingface.co/HuggingFaceM4/Idefics3-8B-Llama3) and our
-MCTS implementation is based on
+[LLaVA](https://github.com/haotian-liu/LLaVA) and
+[AutomaTikZ](https://github.com/potamides/AutomaTikZ) (v1), and [Idefics
+3](https://huggingface.co/HuggingFaceM4/Idefics3-8B-Llama3) (v2). Our MCTS
+implementation is based on
 [VerMCTS](https://github.com/namin/llm-verified-with-monte-carlo-tree-search).
