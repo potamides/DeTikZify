@@ -260,6 +260,10 @@ class CrossFlashAttention2(CrossAttention):
             key_states = key_states.to(target_dtype)
             value_states = value_states.to(target_dtype)
 
+        if attention_mask is not None and attention_mask.all():
+            # FIXME: figure out why all 1 attention mask leads to different results
+            attention_mask = None
+
         attn_output = _flash_attention_forward(
             query_states,
             key_states,
