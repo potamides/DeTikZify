@@ -1,15 +1,28 @@
-from functools import partial
 import os
 from typing import Dict, Literal
 
-from PIL import Image
 import torch
-from transformers import Trainer, TrainingArguments, is_torch_xla_available
+from torch.utils.data import Dataset
+from torchvision.transforms import v2
+from transformers import (
+    Trainer,
+    TrainerCallback,
+    TrainingArguments,
+    is_torch_xla_available,
+)
 from transformers.trainer_utils import get_last_checkpoint
 from transformers.utils import logging
 
 from ...model.adapter.modeling_adapter import CrossAttentionAdapterMixin
-from ...util import SplitEpochSaveCallback
+from ...util import (
+    EditCutMix,
+    EditCutOut,
+    EditMixUp,
+    FullErase,
+    SketchAugment,
+    SplitEpochSaveCallback,
+    unwrap_processor,
+)
 
 if is_torch_xla_available():
     import torch_xla.core.xla_model as xm # type: ignore
@@ -137,20 +150,69 @@ class AdapterTrainer(Trainer):
             self._save_checkpoint(model, trial, metrics=metrics)
             self.control = self.callback_handler.on_save(self.args, self.state, self.control)
 
-def transform_images(batch, processor, bg="white"):
-    label_ids = processor(images=batch['image'], return_tensors="pt")
-    input_ids = processor(
-        images=[Image.new('RGB', img.size, color=bg) for img in batch['image']],
-        text=batch['text'],
-        return_tensors="pt",
-        text_kwargs=dict(
-            padding=True,
-            truncation=True,
-        )
-    )
+class AugmentationDataset(Dataset, TrainerCallback):
+    """
+    Dataset which applies augmentations to image samples.
+    """
+    def __init__(self, dataset, processor):
+        super().__init__()
+        self.processor = processor
+        self.dataset = dataset
+        self.offset = 1
 
-    input_ids['labels'] = label_ids['pixel_values']
-    return input_ids
+        self.sketchify = SketchAugment(intensity=2)
+        self.mixup = EditMixUp()
+        self.cutmix = EditCutMix()
+        self.cutout = EditCutOut()
+        self.erase = FullErase()
+
+    def __len__(self):
+        return len(self.dataset)
+
+    def __getitems__(self, indices) -> Dict[str, torch.Tensor]:
+        batch = self.dataset[indices]
+        labels = torch.stack([v2.functional.pil_to_tensor(img) for img in batch['image']])
+        inputs = torch.empty_like(labels)
+
+        partition = torch.randint(3, (len(indices),))
+        if len(sketch_ids:=torch.argwhere(partition == 0).flatten()):
+            inputs[sketch_ids] = self.sketchify(labels[sketch_ids])
+        if len(blank_ids:=torch.argwhere(partition == 1).flatten()):
+            inputs[blank_ids] = self.erase(labels[blank_ids])
+        if len(edit_ids:=torch.argwhere(partition == 2).flatten()):
+            edit_partition = torch.randint(3, (len(edit_ids),))
+            if len(cutout_ids:=edit_ids[torch.argwhere(edit_partition == 0)].flatten()):
+                inputs[cutout_ids] = self.cutout(labels[cutout_ids])
+            if len(mixup_ids:=edit_ids[torch.argwhere(edit_partition == 1)].flatten()):
+                mixup_imgs = self.dataset[[(indices[idx] + self.offset) % len(self) for idx in mixup_ids]]['image']
+                mixup_imgs = torch.stack([v2.functional.pil_to_tensor(img) for img in mixup_imgs])
+                interleaved_imgs = torch.stack([labels[mixup_ids], mixup_imgs], dim=1).view(-1, *mixup_imgs.shape[1:])
+                inputs[mixup_ids] = self.mixup(interleaved_imgs)[::2]
+            if len(cutmix_ids:=edit_ids[torch.argwhere(edit_partition == 2)].flatten()):
+                cutmix_imgs = self.dataset[[(indices[idx] + self.offset) % len(self) for idx in cutmix_ids]]['image']
+                cutmix_imgs = torch.stack([v2.functional.pil_to_tensor(img) for img in cutmix_imgs])
+                interleaved_imgs = torch.stack([labels[cutmix_ids], cutmix_imgs], dim=1).view(-1, *cutmix_imgs.shape[1:])
+                inputs[cutmix_ids] = self.cutmix(interleaved_imgs)[::2]
+
+        input_ids = self.processor(
+            images=inputs,
+            text=batch['text'],
+            return_tensors="pt",
+            text_kwargs=dict(
+                padding=True,
+                truncation=True,
+            )
+        )
+        label_ids = unwrap_processor(self.processor)(images=labels, return_tensors="pt")
+        input_ids['labels'] = label_ids['pixel_values']
+
+        return input_ids
+
+    def __getitem__(self, index) -> Dict[str, torch.Tensor]:
+        return self.__getitems__([index] if isinstance(index, int) else index)
+
+    def on_epoch_end(self, *args, **kwargs):
+        self.offset += 1
 
 def train(
     output_dir: str,
@@ -162,11 +224,11 @@ def train(
     # training hyperparams
     batch_size: int = 256,
     micro_batch_size: int = 8,
-    num_epochs: int = 10,
+    num_epochs: int = 5,
     learning_rate: float = 1e-4,
     gradient_checkpointing: bool = False,
 ):
-    dataset.set_transform(partial(transform_images, processor=processor))
+    dataset = AugmentationDataset(dataset, processor=processor)
     gradient_accumulation_steps = batch_size // micro_batch_size
 
     if WORLD_SIZE != 1:
@@ -189,13 +251,14 @@ def train(
     trainer = AdapterTrainer(
         model=model,
         train_dataset=dataset,
-        callbacks=[SplitEpochSaveCallback(step_size=0.25)],
+        callbacks=[SplitEpochSaveCallback(step_size=0.5)],
         args=TrainingArguments(
             per_device_train_batch_size=micro_batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
             gradient_checkpointing=gradient_checkpointing,
             # https://github.com/huggingface/transformers/issues/21381
             gradient_checkpointing_kwargs={'use_reentrant': False},
+            dataloader_num_workers=WORLD_SIZE,
             warmup_steps=500,
             weight_decay=0.1,
             num_train_epochs=num_epochs,
@@ -216,6 +279,7 @@ def train(
         )
     )
 
+    trainer.add_callback(trainer.train_dataset)
     trainer.train(resume_from_checkpoint=last_checkpoint)
 
     if trainer.is_deepspeed_enabled:
