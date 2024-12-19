@@ -252,6 +252,7 @@ def train(
         model=model,
         train_dataset=dataset,
         callbacks=[SplitEpochSaveCallback(step_size=0.5)],
+        data_collator=lambda batch: batch,
         args=TrainingArguments(
             per_device_train_batch_size=micro_batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
