@@ -29,7 +29,6 @@ if is_torch_xla_available():
 
 logger = logging.get_logger("transformers")
 
-IGNORE_INDEX = -100
 WORLD_SIZE = int(os.environ.get("WORLD_SIZE", 1))
 
 # https://huggingface.co/docs/transformers/main/en/tasks/knowledge_distillation_for_image_classification
@@ -150,10 +149,7 @@ class AdapterTrainer(Trainer):
             self._save_checkpoint(model, trial, metrics=metrics)
             self.control = self.callback_handler.on_save(self.args, self.state, self.control)
 
-class AugmentationDataset(Dataset, TrainerCallback):
-    """
-    Dataset which applies augmentations to image samples.
-    """
+class AdapterDataset(Dataset, TrainerCallback):
     def __init__(self, dataset, processor, text_only=True):
         super().__init__()
         self.processor = processor
@@ -229,7 +225,7 @@ def train(
     learning_rate: float = 1e-4,
     gradient_checkpointing: bool = False,
 ):
-    dataset = AugmentationDataset(dataset, processor=processor)
+    dataset = AdapterDataset(dataset, processor=processor)
     gradient_accumulation_steps = batch_size // micro_batch_size
 
     if WORLD_SIZE != 1:
