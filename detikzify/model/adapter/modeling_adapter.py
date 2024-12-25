@@ -361,7 +361,7 @@ class CrossAttentionAdapter(PreTrainedModel):
     _supports_flash_attn_2 = True
     _supports_sdpa = True
 
-    def __init__(self, config, input_hidden_size, cross_attn_every_n_layers = 1):
+    def __init__(self, config, input_hidden_size, cross_attn_every_n_layers=1, use_dummy=True):
         super().__init__(config)
         self.num_patches = (config.image_size // config.patch_size) ** 2
         self._use_flash_attention_2 = config._attn_implementation == "flash_attention_2"
@@ -376,6 +376,15 @@ class CrossAttentionAdapter(PreTrainedModel):
             config.hidden_size,
             bias=True
         )
+
+        if use_dummy:
+            self.dummy_input = nn.Parameter(
+                torch.ones(
+                    config.num_channels,
+                    config.image_size,
+                    config.image_size
+                )
+            )
 
         self.post_init()
 
@@ -395,6 +404,7 @@ class CrossAttentionAdapterMixin:
         self,
         model_or_model_name_or_path,
         cross_attn_every_n_layers: Optional[int] = 1,
+        use_dummy: Optional[bool] = True,
         **adapter_kwargs,
     ):
         self.embedding_model = self.load_embedding_model(
@@ -404,6 +414,7 @@ class CrossAttentionAdapterMixin:
         self.adapter = CrossAttentionAdapter._from_config(
             input_hidden_size=self.embedding_model.config.hidden_size,
             cross_attn_every_n_layers=cross_attn_every_n_layers,
+            use_dummy=use_dummy,
             config=getattr(self.config, "vision_config", self.config),
             torch_dtype=self.dtype,
             **adapter_kwargs
@@ -415,6 +426,7 @@ class CrossAttentionAdapterMixin:
         model_or_model_name_or_path,
         adapter_name_or_path: Optional[str] = None,
         cross_attn_every_n_layers: Optional[int] = 1,
+        use_dummy: Optional[bool] = True,
         **adapter_kwargs,
     ):
         self.embedding_model = self.load_embedding_model(
@@ -426,6 +438,7 @@ class CrossAttentionAdapterMixin:
                 pretrained_model_name_or_path=adapter_name_or_path,
                 input_hidden_size=self.embedding_model.config.hidden_size,
                 cross_attn_every_n_layers=cross_attn_every_n_layers,
+                use_dummy=use_dummy,
                 config=getattr(self.config, "vision_config", self.config),
                 torch_dtype=self.dtype,
                 **adapter_kwargs
@@ -467,7 +480,11 @@ class CrossAttentionAdapterMixin:
         else:
             raise ValueError("Couldn't locate vision encoder layers!")
 
-        def forward_hook(_, args, kwargs):
+        # HACK: convert args to kwargs
+        def args_to_kwargs(module, args):
+            return dict(zip(type(module).forward.__code__.co_varnames[1:], args))
+
+        def forward_hook(layer, args, kwargs):
             if (adapter_input_ids:=kwargs.pop("adapter_input_ids", None)) is not None:
                 if not hasattr(self, "adapter"):
                     raise ValueError("Got `adapter_input_ids` but no adapter is loaded!")
@@ -475,6 +492,13 @@ class CrossAttentionAdapterMixin:
                     input_ids=adapter_input_ids,
                     attention_mask=kwargs.pop("adapter_attention_mask", None)
                 )
+                if "pixel_values" not in kwargs | args_to_kwargs(layer, args):
+                    if hasattr(self.adapter, "dummy_input"):
+                        dummy_input = self.adapter.dummy_input.clamp(-1, 1)
+                    else:
+                        config = getattr(self.config, "vision_config", self.config)
+                        dummy_input = torch.ones(config.num_channels, config.image_size, config.image_size)
+                    kwargs['pixel_values'] = dummy_input.repeat(len(adapter_input_ids), 1, 1, 1)
 
             return args, kwargs
 
@@ -491,8 +515,7 @@ class CrossAttentionAdapterMixin:
                         ))
                         adapter_inputs.clear()
                     if cross_attention:
-                        # HACK: convert args to kwargs
-                        kwargs |= dict(zip(type(layer).forward.__code__.co_varnames[1:], args))
+                        kwargs |= args_to_kwargs(layer, args)
                         kwargs['hidden_states'] = cross_layer(**cross_attention, **kwargs)[0]
                         return [], kwargs
 

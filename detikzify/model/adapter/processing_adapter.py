@@ -1,4 +1,4 @@
-from typing import List, TYPE_CHECKING, Union, Unpack
+from typing import List, Optional, TYPE_CHECKING, Union, Unpack
 
 from transformers.feature_extraction_utils import BatchFeature
 from transformers.image_utils import ImageInput, make_list_of_images
@@ -10,12 +10,12 @@ from transformers.tokenization_utils_base import (
 )
 from transformers.utils import logging
 
+from ...util import DUMMY_IMAGE
 
 if TYPE_CHECKING:
     from transformers.tokenization_utils_base import PreTokenizedInput
 
 logger = logging.get_logger(__name__)
-
 
 class AdapterProcessor(ProcessorMixin):
     attributes = ["processor", "tokenizer"]
@@ -31,28 +31,32 @@ class AdapterProcessor(ProcessorMixin):
 
     def __call__(
         self,
-        text: Union[TextInput, PreTokenizedInput, List[TextInput], List[PreTokenizedInput]] = None,
-        images: ImageInput = None,
+        text: Optional[Union[TextInput, PreTokenizedInput, List[TextInput], List[PreTokenizedInput]]] = None,
+        images: Optional[ImageInput] = None,
         **kwargs: Unpack[ProcessingKwargs],
     ) -> BatchEncoding:
+        if images is None and text is None:
+            raise ValueError("Either `images` or `text` (or both) are expected as arguments to an `AdapterProcessor` instance.")
+
+        text_kwargs, images_kwargs = kwargs.pop("text_kwargs", {}), kwargs.pop("images_kwargs", {})
+
+        if text is None:
+            text_inputs = dict()
+        else:
+            text = [text] if isinstance(text, str) else text
+            text_inputs = {f"adapter_{key}": value for key, value in self.tokenizer(text=text, **kwargs, **text_kwargs).items()}
         if images is None:
-            raise ValueError("`images` are expected as arguments to a `AdapterProcessor` instance.")
+            image_inputs = self.processor(images=len(text) * [DUMMY_IMAGE], **kwargs, **images_kwargs)
+            image_inputs = dict((k, image_inputs[k]) for k in ["input_ids", "attention_mask"] if k in image_inputs)
         else:
             images = make_list_of_images(images)
-        if text is not None:
-            if isinstance(text, str):
-                text = [text]
-            if len(images) != len(text):
-                raise ValueError(
-                    f"Received {len(images)} images for {len(text)} prompts. Each prompt should be associated with an image."
-                )
-            text_kwargs = kwargs.pop("text_kwargs", {})
-            text_inputs = {f"adapter_{key}": value for key, value in self.tokenizer(text=text, **kwargs, **text_kwargs).items()}
-        else:
-            text_inputs = dict()
+            image_inputs = self.processor(images=images, **kwargs, **images_kwargs)
 
-        images_kwargs = kwargs.pop("images_kwargs", {})
-        image_inputs = self.processor(images=images, **kwargs, **images_kwargs)
+        if text is not None and images is not None and len(images) != len(text):
+            raise ValueError(
+                f"Received {len(images)} images for {len(text)} prompts. Each prompt should be associated with an image."
+            )
+
         return BatchFeature(data={**image_inputs, **text_inputs})
 
     def batch_decode(self, *args, **kwargs):

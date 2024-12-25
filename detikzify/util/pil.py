@@ -6,6 +6,8 @@ from PIL import Image, ImageChops, ImageOps
 import requests
 from transformers.utils.hub import is_remote_url
 
+DUMMY_IMAGE = Image.new("RGB", (24, 24), color="white")
+
 def convert(image, filetype):
     image.save(imgbytes:=BytesIO(), format=filetype)
     return Image.open(imgbytes)

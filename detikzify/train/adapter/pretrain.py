@@ -154,10 +154,11 @@ class AugmentationDataset(Dataset, TrainerCallback):
     """
     Dataset which applies augmentations to image samples.
     """
-    def __init__(self, dataset, processor):
+    def __init__(self, dataset, processor, text_only=True):
         super().__init__()
         self.processor = processor
         self.dataset = dataset
+        self.text_only = text_only
         self.offset = 1
 
         self.sketchify = SketchAugment(intensity=2)
@@ -170,32 +171,32 @@ class AugmentationDataset(Dataset, TrainerCallback):
         return len(self.dataset)
 
     def __getitems__(self, indices) -> Dict[str, torch.Tensor]:
-        batch = self.dataset[indices]
+        batch, images = self.dataset[indices], None
         labels = torch.stack([v2.functional.pil_to_tensor(img) for img in batch['image']])
-        inputs = torch.empty_like(labels)
 
-        partition = torch.randint(3, (len(indices),))
-        if len(sketch_ids:=torch.argwhere(partition == 0).flatten()):
-            inputs[sketch_ids] = self.sketchify(labels[sketch_ids])
-        if len(blank_ids:=torch.argwhere(partition == 1).flatten()):
-            inputs[blank_ids] = self.erase(labels[blank_ids])
-        if len(edit_ids:=torch.argwhere(partition == 2).flatten()):
-            edit_partition = torch.randint(3, (len(edit_ids),))
-            if len(cutout_ids:=edit_ids[torch.argwhere(edit_partition == 0)].flatten()):
-                inputs[cutout_ids] = self.cutout(labels[cutout_ids])
-            if len(mixup_ids:=edit_ids[torch.argwhere(edit_partition == 1)].flatten()):
-                mixup_imgs = self.dataset[[(indices[idx] + self.offset) % len(self) for idx in mixup_ids]]['image']
-                mixup_imgs = torch.stack([v2.functional.pil_to_tensor(img) for img in mixup_imgs])
-                interleaved_imgs = torch.stack([labels[mixup_ids], mixup_imgs], dim=1).view(-1, *mixup_imgs.shape[1:])
-                inputs[mixup_ids] = self.mixup(interleaved_imgs)[::2]
-            if len(cutmix_ids:=edit_ids[torch.argwhere(edit_partition == 2)].flatten()):
-                cutmix_imgs = self.dataset[[(indices[idx] + self.offset) % len(self) for idx in cutmix_ids]]['image']
-                cutmix_imgs = torch.stack([v2.functional.pil_to_tensor(img) for img in cutmix_imgs])
-                interleaved_imgs = torch.stack([labels[cutmix_ids], cutmix_imgs], dim=1).view(-1, *cutmix_imgs.shape[1:])
-                inputs[cutmix_ids] = self.cutmix(interleaved_imgs)[::2]
+        if not self.text_only:
+            partition, images = torch.randint(3, (len(indices),)), torch.empty_like(labels)
+            if len(sketch_ids:=torch.argwhere(partition == 0).flatten()):
+                images[sketch_ids] = self.sketchify(labels[sketch_ids])
+            if len(blank_ids:=torch.argwhere(partition == 1).flatten()):
+                images[blank_ids] = self.erase(labels[blank_ids])
+            if len(edit_ids:=torch.argwhere(partition == 2).flatten()):
+                edit_partition = torch.randint(3, (len(edit_ids),))
+                if len(cutout_ids:=edit_ids[torch.argwhere(edit_partition == 0)].flatten()):
+                    images[cutout_ids] = self.cutout(labels[cutout_ids])
+                if len(mixup_ids:=edit_ids[torch.argwhere(edit_partition == 1)].flatten()):
+                    mixup_imgs = self.dataset[[(indices[idx] + self.offset) % len(self) for idx in mixup_ids]]['image']
+                    mixup_imgs = torch.stack([v2.functional.pil_to_tensor(img) for img in mixup_imgs])
+                    interleaved_imgs = torch.stack([labels[mixup_ids], mixup_imgs], dim=1).view(-1, *mixup_imgs.shape[1:])
+                    images[mixup_ids] = self.mixup(interleaved_imgs)[::2]
+                if len(cutmix_ids:=edit_ids[torch.argwhere(edit_partition == 2)].flatten()):
+                    cutmix_imgs = self.dataset[[(indices[idx] + self.offset) % len(self) for idx in cutmix_ids]]['image']
+                    cutmix_imgs = torch.stack([v2.functional.pil_to_tensor(img) for img in cutmix_imgs])
+                    interleaved_imgs = torch.stack([labels[cutmix_ids], cutmix_imgs], dim=1).view(-1, *cutmix_imgs.shape[1:])
+                    images[cutmix_ids] = self.cutmix(interleaved_imgs)[::2]
 
         input_ids = self.processor(
-            images=inputs,
+            images=images,
             text=batch['text'],
             return_tensors="pt",
             text_kwargs=dict(
