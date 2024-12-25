@@ -10,7 +10,7 @@ from transformers import (
     TrainingArguments,
     is_torch_xla_available,
 )
-from transformers.trainer_utils import get_last_checkpoint
+from transformers.trainer_utils import SaveStrategy, get_last_checkpoint
 from transformers.utils import logging
 
 from ...model.adapter.modeling_adapter import CrossAttentionAdapterMixin
@@ -112,7 +112,7 @@ class AdapterTrainer(Trainer):
         return (loss, student_output) if return_outputs else loss
 
     # https://github.com/naba89/custom_hf_trainer
-    def _maybe_log_save_evaluate(self, tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval):
+    def _maybe_log_save_evaluate(self, tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval, start_time):
         if self.control.should_log and self.state.global_step > self._globalstep_last_logged:
             if is_torch_xla_available():
                 xm.mark_step() # type: ignore
@@ -139,14 +139,18 @@ class AdapterTrainer(Trainer):
             self._globalstep_last_logged = self.state.global_step
             self.store_flos()
 
-            self.log(logs)
+            self.log(logs, start_time)
 
         metrics = None
         if self.control.should_evaluate:
             metrics = self._evaluate(trial, ignore_keys_for_eval)
+            is_new_best_metric = self._determine_best_metric(metrics=metrics, trial=trial)
+
+            if self.args.save_strategy == SaveStrategy.BEST:
+                self.control.should_save = is_new_best_metric
 
         if self.control.should_save:
-            self._save_checkpoint(model, trial, metrics=metrics)
+            self._save_checkpoint(model, trial)
             self.control = self.callback_handler.on_save(self.args, self.state, self.control)
 
 class AdapterDataset(Dataset, TrainerCallback):
