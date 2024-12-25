@@ -219,7 +219,7 @@ def train(
     overwrite=False,
     deepspeed=None,
     # training hyperparams
-    batch_size: int = 256,
+    batch_size: int = 512,
     micro_batch_size: int = 8,
     num_epochs: int = 5,
     learning_rate: float = 1e-4,
