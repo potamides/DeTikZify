@@ -76,6 +76,7 @@ def train(
             gradient_checkpointing=gradient_checkpointing,
             # https://github.com/huggingface/transformers/issues/21381
             gradient_checkpointing_kwargs={'use_reentrant':False},
+            dataloader_num_workers=WORLD_SIZE,
             warmup_ratio=0.03,
             weight_decay=0,
             num_train_epochs=num_epochs,
