@@ -417,7 +417,7 @@ class CrossAttentionAdapterMixin:
             torch_dtype=self.dtype,
             **adapter_kwargs
         ).to(self.device, self.dtype)
-        self.handles = self.add_hooks()
+        self.add_hooks()
 
     def load_cross_attn_adapter(
         self,
@@ -455,7 +455,7 @@ class CrossAttentionAdapterMixin:
         if "device_map" not in adapter_kwargs:
             self.embedding_model = self.embedding_model.to(self.device)
             self.adapter = self.adapter.to(self.device)
-        self.handles = self.add_hooks()
+        self.add_hooks()
 
     def load_embedding_model(self, model_or_model_name_or_path, **model_kwargs):
         if isinstance(model_or_model_name_or_path, str):
@@ -521,7 +521,7 @@ class CrossAttentionAdapterMixin:
         handles.append(self.register_forward_pre_hook(forward_hook, with_kwargs=True))
         handles.append(self.register_forward_hook(lambda *_: cross_attention.clear()))
 
-        return handles
+        self.handles = handles
 
     def unload_cross_attn_adapter(self):
         for handle in self.handles:

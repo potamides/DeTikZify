@@ -1,5 +1,6 @@
-from collections.abc import Callable
 from collections import defaultdict
+from collections.abc import Callable
+from copy import copy
 from functools import cache, wraps
 from typing import Any
 
@@ -21,13 +22,18 @@ def cache_cast(cast_func: Callable[..., Any]):
         return wrapped_func
     return decorator
 
+def cast(cls, object):
+    clone = copy(object)
+    clone.__class__ = cls
+    return clone
+
 # https://stackoverflow.com/a/12377059
 def listify(fn=None, wrapper=list):
     """
     A decorator which wraps a function's return value in ``list(...)``.
 
     Useful when an algorithm can be expressed more cleanly as a generator but
-    the function should return an list.
+    the function should return a list.
 
     Example::
 

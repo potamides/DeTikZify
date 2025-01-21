@@ -17,7 +17,16 @@ from transformers.generation.streamers import BaseStreamer
 from ..evaluate.imagesim import ImageSim
 from ..mcts.montecarlo import MonteCarlo
 from ..mcts.node import Node
-from ..util import ExplicitAbort, StreamerList, TokenStreamer, cache_cast, expand, load
+from ..model.adapter import has_adapter
+from ..util import (
+    ExplicitAbort,
+    StreamerList,
+    TokenStreamer,
+    cache_cast,
+    expand,
+    load,
+    unwrap_processor as unwrap,
+)
 from .tikz import TikzDocument
 
 Numeric = Union[int, float]
@@ -138,7 +147,8 @@ class DetikzifyGenerator:
         self,
         model,
         processor,
-        image: Image.Image,
+        image: Optional[Image.Image],
+        text: Optional[str] = None,
         metric: Optional[Metric] = None,
         compile_timeout: Optional[int] = 60,
         mcts_timeout: Optional[int] = None,
@@ -152,6 +162,7 @@ class DetikzifyGenerator:
         self.processor = processor
         self.metric = metric
         self.image = image
+        self.text = text
         self.compile_timeout = compile_timeout
         self.mcts_timeout = mcts_timeout
         self.streamer = streamer
@@ -167,6 +178,7 @@ class DetikzifyGenerator:
             root_node=WideNode(
                 processor(
                     images=self.image,
+                    text=self.text,
                     return_tensors="pt",
                 ).input_ids.to(model.device).squeeze(),
                 exploration=self.exploration
@@ -197,15 +209,18 @@ class DetikzifyGenerator:
     def generate(self, input_ids: torch.Tensor, streamer: Optional[BaseStreamer] = None, **gen_kwargs) -> torch.Tensor:
         streamers, numel = StreamerList(filter(bool, [streamer, self.streamer])), input_ids.numel()
         max_length = {**self.model.generation_config.to_dict(), **self.gen_kwargs, **gen_kwargs}["max_length"]
-        if (numel and input_ids[-1] == self.processor.tokenizer.eos_token_id) or numel >= max_length:
+        if (numel and input_ids[-1] == unwrap(self.processor).tokenizer.eos_token_id) or numel >= max_length:
             streamers.end()
             return input_ids # prevent continuing generation after eos
         with torch.inference_mode():
+            token_ids = self.processor(images=self.image, text=self.text, text_kwargs={"truncation": True}, return_tensors="pt")
+            adapter_kwargs = {k: v for k, v in token_ids.to(self.model.device).items() if k.startswith("adapter")}
             return self.model.generate(
                 input_ids=input_ids.unsqueeze(0),
                 bad_words_ids=[[self.model.config.image_token_id]],
-                pixel_values=self.processor(images=self.image, return_tensors="pt").pixel_values.to(self.model.device),
+                pixel_values=token_ids.get("pixel_values"),
                 streamer=streamers,
+                **adapter_kwargs,
                 **self.gen_kwargs,
                 **gen_kwargs
             ).squeeze()
@@ -215,7 +230,7 @@ class DetikzifyGenerator:
         # tokens can potentially contain multiple newlines, so we need special
         # handling when we want to map error lines to tokens
         newlineinfo = dict()
-        for token_id in self.processor.tokenizer.vocab.values():
+        for token_id in unwrap(self.processor).tokenizer.vocab.values():
             # NOTE: Newline normalization might lead to inaccurate estimations
             # for windows line separators (if split over two tokens). However,
             # the likeliness of such tokens being generated (not in training
@@ -276,7 +291,7 @@ class DetikzifyGenerator:
 
     def score(self, image: Image.Image) -> Numeric:
         assert self.metric
-        self.metric.update(image, self.image)
+        self.metric.update(img1=image, img2=self.image, text2=self.text)
         score = self.metric.compute()
         self.metric.reset()
         return score
@@ -364,7 +379,7 @@ class DetikzifyPipeline:
             temperature=temperature,
             top_p=top_p,
             top_k=top_k,
-            max_length=processor.tokenizer.model_max_length,
+            max_length=unwrap(processor).tokenizer.model_max_length,
             do_sample=True,
             compile_timeout=compile_timeout,
             **gen_kwargs
@@ -376,19 +391,33 @@ class DetikzifyPipeline:
             return expand(image, max(image.size), do_trim=True)
         return image
 
-    def sample(self, image: Union[Image.Image, str], preprocess: bool = True, **gen_kwargs) -> TikzDocument:
+    def check_inputs(self, image, text):
+        assert text is None or has_adapter(self.model), "You need to load an adapter for textual inputs!"
+        assert image or text, "Either image or text (or both) required!"
+
+    def sample(
+        self,
+        image: Optional[Union[Image.Image, str]] = None,
+        text: Optional[str] = None,
+        preprocess: bool = True,
+        **gen_kwargs,
+    ) -> TikzDocument:
         """
         DeTikZify a raster image. Samples a single image and returns it.
             image: the image
+            text: textual instruction
             preprocess: whether to preprocess the image (expand to square and
                 trim to content)
             gen_kwargs: additional generation kwargs (potentially overriding
                 the default ones)
         """
+
+        self.check_inputs(image, text)
         generator = DetikzifyGenerator(
             model=self.model,
             processor=self.processor,
-            image=self.load(image, preprocess=preprocess),
+            image=self.load(image, preprocess=preprocess) if image is not None else None,
+            text=text,
             **self.gen_kwargs,
             **gen_kwargs
         )
@@ -397,7 +426,8 @@ class DetikzifyPipeline:
 
     def simulate(
         self,
-        image: Union[Image.Image, str],
+        image: Optional[Union[Image.Image, str]] = None,
+        text: Optional[str] = None,
         preprocess: bool = True,
         expansions: Optional[Numeric] = None,
         timeout: Optional[int] = None,
@@ -407,6 +437,7 @@ class DetikzifyPipeline:
         DeTikZify a raster image using MCTS. Returns an iterator yielding
         (score, tikzdoc) tuples of TikZ documents created during rollouts.
             image: the image
+            text: textual instruction
             preprocess: whether to preprocess the image (expand to square and
                 trim to content)
             expansions: number of attempted MCTS expansions (set to None, 0 or
@@ -416,12 +447,15 @@ class DetikzifyPipeline:
             gen_kwargs: additional generation kwargs (potentially overriding
                 the default ones)
         """
+
+        self.check_inputs(image, text)
         generator = DetikzifyGenerator(
             model=self.model,
             processor=self.processor,
             metric=self.metric,
             mcts_timeout=timeout or None,
-            image=self.load(image, preprocess=preprocess),
+            image=self.load(image, preprocess=preprocess) if image is not None else None,
+            text=text,
             **self.gen_kwargs,
             **gen_kwargs
         )
