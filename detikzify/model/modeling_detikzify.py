@@ -428,12 +428,9 @@ class DetikzifyForConditionalGeneration(DetikzifyPreTrainedModel, GenerationMixi
 
         # support model.generate method with adapters
         if self.has_adapter():
-            model_inputs.update(
-                {
-                    "adapter_input_ids": kwargs.get("adapter_input_ids"),
-                    "adapter_attention_mask": kwargs.get("adapter_attention_mask")
-                }
-            )
+            for key in ["adapter_input_ids", "adapter_attention_mask"]:
+                if key in kwargs:
+                    model_inputs[key] = kwargs[key]
 
         model_inputs.update(
             {
