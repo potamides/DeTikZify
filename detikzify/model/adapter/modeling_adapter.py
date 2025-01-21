@@ -483,7 +483,11 @@ class CrossAttentionAdapterMixin:
             return dict(zip(type(module).forward.__code__.co_varnames[1:], args))
 
         def forward_hook(layer, args, kwargs):
-            if (adapter_input_ids:=kwargs.pop("adapter_input_ids", None)) is not None:
+            if kwargs.get("image_hidden_states") is not None:
+                # we are in .generate method which calls forward iteratively
+                for key in ["adapter_input_ids", "adapter_attention_mask"]:
+                    kwargs.pop(key, None)
+            elif (adapter_input_ids:=kwargs.pop("adapter_input_ids", None)) is not None:
                 if not hasattr(self, "adapter"):
                     raise ValueError("Got `adapter_input_ids` but no adapter is loaded!")
                 adapter_inputs.update(
