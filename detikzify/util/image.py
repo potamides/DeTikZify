@@ -1,8 +1,10 @@
 from base64 import b64decode
+from codecs import encode
 from io import BytesIO
 from os.path import isfile
 
 from PIL import Image, ImageChops, ImageOps
+import pymupdf
 import requests
 from transformers.utils.hub import is_remote_url
 
@@ -56,3 +58,14 @@ def load(image: Image.Image | str | bytes, bg="white", timeout=None):
 
     image = ImageOps.exif_transpose(image) # type: ignore
     return  remove_alpha(image, bg=bg)
+
+def redact(doc, rot_13=False):
+    for page in (copy:=pymupdf.open("pdf", doc.tobytes())):
+        for word in page.get_text("words", clip=pymupdf.INFINITE_RECT()): # type: ignore
+            text = encode(word[4], "rot13") if rot_13 else None
+            page.add_redact_annot(word[:4], text=text, fill=False) # type: ignore
+        page.apply_redactions(  # type: ignore
+            images=pymupdf.PDF_REDACT_IMAGE_NONE, # type: ignore
+            graphics=pymupdf.PDF_REDACT_LINE_ART_NONE # type: ignore
+        )
+    return copy

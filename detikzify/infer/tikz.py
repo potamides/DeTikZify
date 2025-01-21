@@ -9,12 +9,12 @@ from tempfile import NamedTemporaryFile, TemporaryDirectory
 from typing import Dict, Optional, Union
 
 from PIL import Image
-import pymupdf
 from pdf2image.pdf2image import convert_from_bytes
 from pdfCropMargins import crop
+import pymupdf
 from transformers.utils import logging
 
-from ..util import check_output, expand
+from ..util import check_output, expand, redact as redact_text
 
 logger = logging.get_logger("transformers")
 
@@ -146,9 +146,11 @@ class TikzDocument:
 
         return self.Output(**output)
 
-    def rasterize(self, size=420, expand_to_square=True) -> Optional[Image.Image]:
-        if self.pdf:
-            image = convert_from_bytes(self.pdf.tobytes(), size=size, single_file=True)[0]
+    def rasterize(self, size=420, expand_to_square=True, redact=False, **redact_kwargs) -> Optional[Image.Image]:
+        if pdf:=self.pdf:
+            if redact:
+                pdf = redact_text(pdf, **redact_kwargs)
+            image = convert_from_bytes(pdf.tobytes(), size=size, single_file=True)[0]
             if expand_to_square:
                 return expand(image, size)
             return image
