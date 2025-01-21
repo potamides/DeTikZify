@@ -263,7 +263,7 @@ def train(
     multimodal: bool = False,
     batch_size: int = 512,
     micro_batch_size: int = 8,
-    num_epochs: int = 5,
+    num_epochs: int = 3,
     learning_rate: float = 1e-4,
     gradient_checkpointing: bool = False,
     **loss_kwargs
@@ -311,7 +311,7 @@ def train(
             tf32=True,
             logging_steps=250,
             logging_first_step=True,
-            lr_scheduler_type="constant_with_warmup",
+            lr_scheduler_type="cosine",
             optim="adamw_torch" if deepspeed else "adamw_torch_fused",
             ddp_find_unused_parameters=False,
             remove_unused_columns=False,
