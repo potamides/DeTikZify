@@ -35,8 +35,6 @@ if is_flash_attn_2_available():
 
 logger = logging.get_logger(__name__)
 
-
-
 class CrossAttention(nn.Module):
     """Multi-headed attention from 'Attention Is All You Need' paper"""
 
@@ -309,7 +307,7 @@ class MLP(nn.Module):
 
 
 class CrossAttentionLayer(torch.nn.Module):
-    """Cross-attention transformer block with tanh-gated attention and feedforward."""
+    """Cross-attention transformer block with sigmoid-gated attention and feedforward."""
 
     def __init__(self, config: PretrainedConfig) -> None:
         super().__init__()
@@ -339,12 +337,12 @@ class CrossAttentionLayer(torch.nn.Module):
             cross_attention_states=cross_attention_states,
             output_attentions=output_attentions,
         )
-        hidden_states = residual + self.cross_attn_attn_gate.tanh() * hidden_states
+        hidden_states = residual + self.cross_attn_attn_gate.sigmoid() * hidden_states
 
         residual = hidden_states
         hidden_states = self.layer_norm2(hidden_states)
         hidden_states = self.mlp(hidden_states)
-        hidden_states = residual + self.cross_attn_mlp_gate.tanh() * hidden_states
+        hidden_states = residual + self.cross_attn_mlp_gate.sigmoid() * hidden_states
 
         outputs = (hidden_states,)
 
