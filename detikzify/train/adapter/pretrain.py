@@ -72,13 +72,14 @@ class AdapterTrainer(Trainer):
         elementwise_loss: bool = True,
         cossim_loss: bool = True,
         pool_train_head: bool = False,
+        multimodal: bool = False,
         *args,
         **kwargs,
     ):
         self.term = loss_term
-        self.train_head = self.term == "pool" and pool_train_head
-        super().__init__(self.prepare_model(model), *args, **kwargs) # type: ignore
         self.loss_function = EmbeddingSimilarityLoss(elementwise=elementwise_loss, cossim=cossim_loss)
+        train_head = self.term == "pool" and pool_train_head
+        super().__init__(self.prepare_model(model, train_head, multimodal), *args, **kwargs) # type: ignore
 
         if self.term == "layer":
             self.loss_layers = sorted({len(self.model.adapter.layers)} | {
@@ -86,14 +87,16 @@ class AdapterTrainer(Trainer):
             })
             self.control.layer_losses = {layer: 0 for layer in self.loss_layers}
 
-    def prepare_model(self, model):
+    def prepare_model(self, model, train_head=False, multimodal=False):
         for name, param in model.named_parameters():
-            if not "adapter" in name and (not self.train_head or not "head" in name):
+            if not "adapter" in name and (not train_head or not "head" in name):
+                param.requires_grad = False
+            elif multimodal and "dummy_input" in name:
                 param.requires_grad = False
             elif model.dtype != torch.float32:
                 param.data = param.data.to(torch.float32)
 
-        if self.train_head: # in this case we also want gradients for the teacher
+        if train_head: # in this case we also want gradients for the teacher
             model.vision_model.head.forward = torch.enable_grad(model.vision_model.head.forward)
         if self.term != "pool":
             model.vision_model.use_head = False
@@ -188,11 +191,11 @@ class AdapterTrainer(Trainer):
             self.control = self.callback_handler.on_save(self.args, self.state, self.control)
 
 class AdapterDataset(Dataset, TrainerCallback):
-    def __init__(self, dataset, processor, text_only=True):
+    def __init__(self, dataset, processor, multimodal=False):
         super().__init__()
         self.processor = processor
         self.dataset = dataset
-        self.text_only = text_only
+        self.multimodal = multimodal
         self.offset = 1
 
         self.sketchify = SketchAugment(intensity=2)
@@ -208,7 +211,7 @@ class AdapterDataset(Dataset, TrainerCallback):
         batch, images = self.dataset[indices], None
         labels = torch.stack([v2.functional.pil_to_tensor(img) for img in batch['image']])
 
-        if not self.text_only:
+        if self.multimodal:
             partition, images = torch.randint(3, (len(indices),)), torch.empty_like(labels)
             if len(sketch_ids:=torch.argwhere(partition == 0).flatten()):
                 images[sketch_ids] = self.sketchify(labels[sketch_ids])
@@ -257,6 +260,7 @@ def train(
     overwrite=False,
     deepspeed=None,
     # training hyperparams
+    multimodal: bool = False,
     batch_size: int = 512,
     micro_batch_size: int = 8,
     num_epochs: int = 5,
@@ -264,7 +268,7 @@ def train(
     gradient_checkpointing: bool = False,
     **loss_kwargs
 ):
-    dataset = AdapterDataset(dataset, processor=processor)
+    dataset = AdapterDataset(dataset, processor=processor, multimodal=multimodal)
     gradient_accumulation_steps = batch_size // micro_batch_size
 
     if WORLD_SIZE != 1:
@@ -287,6 +291,7 @@ def train(
     trainer = AdapterTrainer(
         model=model,
         train_dataset=dataset,
+        multimodal=multimodal,
         callbacks=[SplitEpochSaveCallback(step_size=0.5)],
         data_collator=lambda batch: batch,
         **loss_kwargs,

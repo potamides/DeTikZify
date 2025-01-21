@@ -60,6 +60,10 @@ def parse_args():
         action="store_true",
         help="use gradient checkpointing",
     )
+    argument_parser.add_argument("--multimodal",
+        action="store_true",
+        help="train an adapter for multimodal inputs",
+    )
 
     return argument_parser.parse_args()
 
@@ -114,4 +118,5 @@ if __name__ == "__main__":
         output_dir=join(args.output, basename(args.base_model)),
         gradient_checkpointing=args.gradient_checkpointing,
         deepspeed=args.deepspeed,
+        multimodal=args.multimodal,
     )
