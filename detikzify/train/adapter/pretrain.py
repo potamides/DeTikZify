@@ -31,20 +31,54 @@ logger = logging.get_logger("transformers")
 
 WORLD_SIZE = int(os.environ.get("WORLD_SIZE", 1))
 
+class EmbeddingSimilarityLoss():
+    def __init__(self, elementwise: bool = True, cossim: bool = True):
+        self.cosine = torch.nn.CosineSimilarity(dim=-1)
+        self.mae = torch.nn.L1Loss(reduction="none")
+        self.mse = torch.nn.MSELoss(reduction="none")
+        self.elementwise = elementwise
+        self.cossim = cossim
+
+    # https://github.com/pytorch/pytorch/issues/104564#issuecomment-1651575112
+    @torch.compile
+    def cosine_loss(self, x, y):
+        if self.elementwise:
+            return self.mae(cos:=self.cosine(x, y), torch.ones_like(cos)).mean()
+        else:
+            X = self.cosine(x.unsqueeze(2), y.unsqueeze(1))
+            Y = self.cosine(y.unsqueeze(2), y.unsqueeze(1))
+            return self.mae(X, Y).max(dim=-1)[0].mean()
+
+    @torch.compile
+    def l2_loss(self, x, y):
+        if self.elementwise:
+            return self.mse(x, y).mean()
+        else:
+            X, Y = torch.cdist(x, y), torch.cdist(y, y)
+            return self.mae(X, Y).max(dim=-1)[0].mean()
+
+    def __call__(self, x, y):
+        if self.cossim:
+            return self.cosine_loss(x, y)
+        else:
+            return self.l2_loss(x, y)
+
 # https://huggingface.co/docs/transformers/main/en/tasks/knowledge_distillation_for_image_classification
 class AdapterTrainer(Trainer):
     def __init__(
         self,
         model: CrossAttentionAdapterMixin,
         loss_term: Literal["avg", "pool", "patch", "layer"] = "patch",
+        elementwise_loss: bool = True,
+        cossim_loss: bool = True,
         pool_train_head: bool = False,
         *args,
         **kwargs,
     ):
         self.term = loss_term
-        self.loss_function = torch.nn.MSELoss()
         self.train_head = self.term == "pool" and pool_train_head
         super().__init__(self.prepare_model(model), *args, **kwargs) # type: ignore
+        self.loss_function = EmbeddingSimilarityLoss(elementwise=elementwise_loss, cossim=cossim_loss)
 
         if self.term == "layer":
             self.loss_layers = sorted({len(self.model.adapter.layers)} | {
@@ -228,6 +262,7 @@ def train(
     num_epochs: int = 5,
     learning_rate: float = 1e-4,
     gradient_checkpointing: bool = False,
+    **loss_kwargs
 ):
     dataset = AdapterDataset(dataset, processor=processor)
     gradient_accumulation_steps = batch_size // micro_batch_size
@@ -254,6 +289,7 @@ def train(
         train_dataset=dataset,
         callbacks=[SplitEpochSaveCallback(step_size=0.5)],
         data_collator=lambda batch: batch,
+        **loss_kwargs,
         args=TrainingArguments(
             per_device_train_batch_size=micro_batch_size,
             gradient_accumulation_steps=gradient_accumulation_steps,
