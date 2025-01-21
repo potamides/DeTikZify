@@ -30,6 +30,30 @@ def process_arxivcap(batch, size):
                     image=convert(expand(cil_pair['image'], size, do_trim=True), "png")
                 )
 
+def init_adapter(base_model, embedding_model):
+    model, processor = load(base_model)
+
+    vision_model = CrossAttentionSiglipVisionModel.from_pretrained(
+        pretrained_model_name_or_path=None,
+        config=model.config.vision_config,
+        state_dict=model.model.vision_model.state_dict(),
+        torch_dtype="bfloat16",
+    )
+    del model
+
+    vision_model.init_cross_attn_adapter(embedding_model)
+    processor = AdapterProcessor(
+        processor=processor.image_processor,
+        tokenizer=AutoTokenizer.from_pretrained(
+            embedding_model,
+            pad_token="<|finetune_right_pad_id|>",
+            model_max_length=512,
+        )
+    )
+    vision_model.embedding_model.config.pad_token_id = processor.tokenizer.pad_token_id
+
+    return vision_model, processor
+
 def process_openmoji(ex, size):
     ex['image'] = convert(expand(ex['image'], size, do_trim=True), "png")
     return ex
@@ -74,26 +98,7 @@ if __name__ == "__main__":
     set_seed(0)
 
     args = parse_args()
-    model, processor = load(args.base_model)
-
-    vision_model = CrossAttentionSiglipVisionModel.from_pretrained(
-        pretrained_model_name_or_path=None,
-        config=model.config.vision_config,
-        state_dict=model.model.vision_model.state_dict(),
-        torch_dtype="bfloat16",
-    )
-    del model
-
-    vision_model.init_cross_attn_adapter(args.embedding_model)
-    processor = AdapterProcessor(
-        processor=processor.image_processor,
-        tokenizer=AutoTokenizer.from_pretrained(
-            args.embedding_model,
-            pad_token="<|finetune_right_pad_id|>",
-            model_max_length=512,
-        )
-    )
-    vision_model.embedding_model.config.pad_token_id = processor.tokenizer.pad_token_id
+    vision_model, processor = init_adapter(args.base_model, args.embedding_model)
 
     with Accelerator().main_process_first():
         arxivcap: Dataset = load_dataset("MMInstruction/ArxivCap", split="train") # type: ignore
