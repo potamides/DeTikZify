@@ -20,14 +20,15 @@ from transformers import set_seed
 from transformers.utils import is_flash_attn_2_available
 
 from detikzify.evaluate import (
+    ClipScore,
     CrystalBLEU,
-    KernelInceptionDistance,
-    ImageSim,
-    TexEditDistance,
     DreamSim,
+    ImageSim,
+    KernelInceptionDistance,
+    TexEditDistance,
 )
 from detikzify.infer import DetikzifyPipeline, TikzDocument
-from detikzify.model import load as load_model
+from detikzify.model import adapter, load as load_model
 
 WORLD_SIZE = int(getenv("WORLD_SIZE", 1))
 RANK = int(getenv("RANK", 0))
@@ -61,16 +62,17 @@ def parse_args():
         help="minimum time to run MCTS in seconds",
     )
     argument_parser.add_argument(
-        "--use_sketches",
-        action="store_true",
-        help="condition model on sketches instead of images",
+        "--model_inputs",
+        default="image",
+        choices=["image", "sketch", "caption", "caption-image", "caption-sketch"],
+        help="which inputs to condition the model on",
     )
     argument_parser.add_argument(
         "--path",
         nargs='+',
-        metavar="MODEL=PATH",
+        metavar="MODEL=PATH[:ADAPTER] | MODEL=JSON",
         required=True,
-        help="(multiple) key-value pairs of model names and paths/urls to models/adapters (local or hub) or json files",
+        help="(multiple) key-value pairs of model names and paths/urls to models and optionally adapters or json files",
     )
     return argument_parser.parse_args()
 
@@ -90,10 +92,12 @@ def interleave(chunks):
             break
     return interleaved
 
-def generate(pipe, image, strict=False, timeout=None, **tqdm_kwargs):
+def generate(pipe, item, model_inputs, strict=False, timeout=None, **tqdm_kwargs):
     """Run MCTS until the generated tikz code compiles."""
     start, success, tikzpics = time(), False, set()
-    for score, tikzpic in tqdm(pipe.simulate(image=image), desc="Try", **tqdm_kwargs):
+    inputs = {"text" if key == "caption" else "image":  item[key] for key in model_inputs.split("-")}
+
+    for score, tikzpic in tqdm(pipe.simulate(**inputs), desc="Try", **tqdm_kwargs):
         tikzpics.add((score, tikzpic.code))
         if not tikzpic.compiled_with_errors if strict else tikzpic.is_rasterizable:
             success = True
@@ -101,7 +105,7 @@ def generate(pipe, image, strict=False, timeout=None, **tqdm_kwargs):
             break
     return [tikzpic for _, tikzpic in sorted(tikzpics, key=itemgetter(0))]
 
-def predict(model_name, base_model, testset, cache_file=None, timeout=None, key="image"):
+def predict(model_name, base_model, testset, model_inputs="image", adapter_model=None, cache_file=None, timeout=None):
     predictions, worker_preds = list(), list()
     model, processor = load_model(
         model_name_or_path=base_model,
@@ -109,9 +113,11 @@ def predict(model_name, base_model, testset, cache_file=None, timeout=None, key=
         torch_dtype=bfloat16 if is_cuda_available() and is_bf16_supported() else float16,
         attn_implementation="flash_attention_2" if is_flash_attn_2_available() else None,
     )
+    if adapter_model is not None:
+        model, processor = adapter.load(model, processor, adapter_model)
     # if we don't have a timeout (i.e., only run mcts until we obtain smth compileable), we can use fast metrics
-    metric_type = "model" if timeout else "fast"
-    pipe = DetikzifyPipeline(model=model, processor=processor, metric=metric_type)
+    pipe = DetikzifyPipeline(model=model, processor=processor, metric="model" if timeout else "fast")
+
     if cache_file and isfile(cache_file):
         with open(cache_file) as f:
             predictions = load_json(f)
@@ -119,7 +125,7 @@ def predict(model_name, base_model, testset, cache_file=None, timeout=None, key=
         worker_chunk = list(chunk(list(testset)[len(predictions):], WORLD_SIZE))[RANK]
         # FIXME: right now there only is a progress bar for Rank 0
         for item in tqdm(worker_chunk, desc=f"{model_name.title()} ({RANK})", disable=RANK!=0):
-            tikz = generate(pipe, image=item[key], timeout=timeout, position=1, leave=False, disable=RANK!=0)
+            tikz = generate(pipe, item, model_inputs, timeout=timeout, position=1, leave=False, disable=RANK!=0)
             worker_preds.append(tikz)
         del model, processor, pipe
     finally:
@@ -133,8 +139,8 @@ def predict(model_name, base_model, testset, cache_file=None, timeout=None, key=
 def load_metrics(trainset, measure_throughput=False, **kwargs):
     bleu = CrystalBLEU(corpus=trainset, **kwargs)
     eed = TexEditDistance(**kwargs)
-    emdsim = ImageSim(mode="emd", **kwargs)
-    cossim = ImageSim(**kwargs)
+    clip = ClipScore(**kwargs)
+    imgsim = ImageSim(**kwargs)
     dreamsim = DreamSim(**kwargs)
     kid = KernelInceptionDistance(**kwargs)
 
@@ -147,9 +153,10 @@ def load_metrics(trainset, measure_throughput=False, **kwargs):
     def mean_sampling_throughput(predictions, limit=0.05):
         return winsorize(array(list(map(len, predictions))), limits=limit).mean().item()
 
-    def compute(references, predictions):
+    def compute(references, predictions, compute_redacted=True, **redact_kwargs):
         ref_code, pred_code = [[ref['code']] for ref in references], [pred[-1].code for pred in predictions]
         ref_image, pred_image = [ref['image'] for ref in references], [pred[-1].rasterize() for pred in predictions]
+        captions = [ref['caption'] for ref in references]
         assert all(pred[-1].is_rasterizable for pred in predictions)
 
         if measure_throughput:
@@ -157,19 +164,32 @@ def load_metrics(trainset, measure_throughput=False, **kwargs):
         else:
             scores = {"MeanTokenEfficiency": mean_token_efficiency(predictions=predictions)}
 
-        metrics = {
+        redacted_metrics, standard_metrics = {}, {
             bleu: partial(bleu.update, list_of_references=ref_code, hypotheses=pred_code),
             eed: partial(eed.update, target=ref_code, preds=pred_code),
-            emdsim: lambda: [emdsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_image)],
-            cossim: lambda: [cossim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_image)],
+            clip: partial(clip.update, text=captions, images=pred_image),
+            imgsim: lambda: [imgsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_image)],
             dreamsim: lambda: [dreamsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_image)],
             kid: lambda: [(kid.update(img1, True), kid.update(img2, False)) for img1, img2 in zip(ref_image, pred_image)],
         }
 
-        for metric, update in metrics.items():
-            update()
-            scores[str(metric)] = metric.compute() # type: ignore
-            metric.reset()
+        if compute_redacted:
+            pred_redacted = [pred[-1].rasterize(redact=True, **redact_kwargs) for pred in predictions]
+            redacted_metrics.update(
+                clip=partial(clip.update, text=captions, images=pred_redacted),
+                imgsim=lambda: [imgsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_redacted)],
+                dreamsim=lambda: [dreamsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_redacted)],
+            )
+
+        for metrics, redacted in [(standard_metrics, False), (redacted_metrics, True)]:
+            for metric, update in metrics.items():
+                update()
+                if redacted:
+                    scores[f"Redacted {str(metric)}"] = metric.compute() # type: ignore
+                else:
+                    scores[str(metric)] = metric.compute() # type: ignore
+                metric.reset()
+
         return scores
 
     return compute
@@ -191,11 +211,12 @@ if __name__ == "__main__":
             cache_file = join(args.cache_dir, f'{model_name}.json') if args.cache_dir else None
             predictions[model_name] = predict(
                 model_name=model_name,
-                base_model=path,
+                base_model=path.partition(":")[0],
+                adapter_model=path.partition(":")[2] or None,
+                model_inputs=args.model_inputs,
                 testset=testset,
                 cache_file=cache_file,
                 timeout=args.timeout,
-                key="sketch" if args.use_sketches else "image"
             )
 
     if RANK == 0: # Scoring only on main process
@@ -205,7 +226,8 @@ if __name__ == "__main__":
             scores[model_name] = metrics(
                 references=testset,
                 # use an unrealistically long timeout as we know that the (last) images compile
-                predictions=[[TikzDocument(code, 600) for code in pred] for pred in prediction]
+                predictions=[[TikzDocument(code, 600) for code in pred] for pred in prediction],
+                rot_13=True
             )
         with open(args.output, "w") as file:
             dump(scores, file)
