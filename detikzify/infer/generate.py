@@ -196,8 +196,8 @@ class DetikzifyGenerator:
 
     def simulate(self, expansions: Optional[Numeric] = 1) -> Generator[Tuple[Numeric, TikzDocument], None, None]:
         """
-        Run the simulations. Returns all rollouts (successful or unsuccessful)
-        in descending order (best rollouts first) of their score.
+        Run the simulations. Yields all rollouts (successful and unsuccessful)
+        as (score, TikZ picture) tuples.
         """
         start_time = time()
         while expansions is None or (expansions:=expansions-1) >= 0:
@@ -284,7 +284,7 @@ class DetikzifyGenerator:
         return TikzDocument(
             timeout=self.compile_timeout,
             code=self.processor.decode(
-                token_ids=token_ids,
+                token_ids=token_ids[len(self.montecarlo.root_node.token_ids):],
                 skip_special_tokens=True
             )
         )

@@ -44,7 +44,15 @@ class DetikzifyProcessor(ProcessorMixin):
     image_processor_class = "AutoImageProcessor"
     tokenizer_class = "AutoTokenizer"
 
-    def __init__(self, image_processor, tokenizer=None, image_seq_len: int = 300, image_token: str = "<|reserved_special_token_2|>", **kwargs):
+    def __init__(
+        self,
+        image_processor,
+        tokenizer=None,
+        image_seq_len: int = 300,
+        image_token: str = "<|reserved_special_token_2|>",
+        model_expects_text: bool = False,
+        **kwargs,
+    ):
         if image_processor is None:
             raise ValueError("You need to specify an `image_processor`.")
         if tokenizer is None:
@@ -54,6 +62,7 @@ class DetikzifyProcessor(ProcessorMixin):
 
         self.image_token = image_token
         self.image_seq_len = image_seq_len
+        self.model_expects_text = model_expects_text
 
         super().__init__(image_processor, tokenizer, **kwargs)
 
@@ -91,7 +100,7 @@ class DetikzifyProcessor(ProcessorMixin):
         for prompt in text:
             assert self.image_token not in prompt, "Image tokens are added by the processor!"
             if add_bos_token:
-                prompt = self.tokenizer.bos_token + prompt
+                prompt += self.tokenizer.bos_token
             if add_eos_token:
                 prompt += self.tokenizer.eos_token
             image_seq_len = image_seq_len if image_seq_len is not None else self.image_seq_len

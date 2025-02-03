@@ -45,6 +45,8 @@ class AdapterProcessor(ProcessorMixin):
         else:
             text = [text] if isinstance(text, str) else text
             text_inputs = {f"adapter_{key}": value for key, value in self.tokenizer(text=text, **kwargs, **text_kwargs).items()}
+            if getattr(self.processor, "model_expects_text", False):
+                images_kwargs.update(text=text, add_bos_token=True)
         if images is None:
             image_inputs = self.processor(images=len(text) * [DUMMY_IMAGE], **kwargs, **images_kwargs)
             image_inputs = dict((k, image_inputs[k]) for k in ["input_ids", "attention_mask"] if k in image_inputs)
