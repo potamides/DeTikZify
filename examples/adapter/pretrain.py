@@ -30,6 +30,10 @@ def process_arxivcap(batch, size):
                     image=convert(expand(cil_pair['image'], size, do_trim=True), "png")
                 )
 
+def process_openmoji(ex, size):
+    ex['image'] = convert(expand(ex['image'], size, do_trim=True), "png")
+    return ex
+
 def init_adapter(base_model, embedding_model):
     model, processor = load(base_model)
 
@@ -53,10 +57,6 @@ def init_adapter(base_model, embedding_model):
     vision_model.embedding_model.config.pad_token_id = processor.tokenizer.pad_token_id
 
     return vision_model, processor
-
-def process_openmoji(ex, size):
-    ex['image'] = convert(expand(ex['image'], size, do_trim=True), "png")
-    return ex
 
 def parse_args():
     argument_parser = ArgumentParser(
