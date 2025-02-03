@@ -18,7 +18,7 @@ from detikzify.util import batchify, convert, expand
 @batchify
 def process_mlbcap(batch, size):
     for image, description in zip(batch['image'], batch['figure_description']):
-        return {
+        yield {
             "image": convert(expand(image, size, do_trim=True), "png"),
             "text": description
         }
