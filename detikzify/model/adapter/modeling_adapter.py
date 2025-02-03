@@ -509,7 +509,7 @@ class CrossAttentionAdapterMixin:
                     if cross_attention:
                         kwargs |= args_to_kwargs(layer, args)
                         kwargs['hidden_states'] = cross_layer(**cross_attention, **kwargs)[0]
-                        return [], kwargs
+                        return tuple(), kwargs
 
                 handles.append(layer.register_forward_pre_hook(partial(layer_hook, cross_layer), with_kwargs=True))
         handles.append(self.register_forward_pre_hook(forward_hook, with_kwargs=True))
