@@ -58,10 +58,10 @@ class ImageSim(Metric):
         return AutoImageProcessor.from_pretrained(self.model_name)
 
     @classmethod
-    def from_detikzify(cls, model: PreTrainedModel, processor: ProcessorMixin, *args, **kwargs):
+    def from_detikzify(cls, model: PreTrainedModel, processor: ProcessorMixin, mode=None, *args, **kwargs):
         derived_kwargs = dict(
             model_name = model.name_or_path,
-            mode = getattr(model.config, "pooling_mode", "emd"),
+            mode = getattr(model.config, "pooling_mode", "emd") if mode is None else mode,
             device = model.device,
             dtype = model.dtype,
         )
