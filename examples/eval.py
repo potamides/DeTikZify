@@ -175,17 +175,17 @@ def load_metrics(trainset, measure_throughput=False, **kwargs):
 
         if compute_redacted:
             pred_redacted = [pred[-1].rasterize(redact=True, **redact_kwargs) for pred in predictions]
-            redacted_metrics.update(
-                clip=partial(clip.update, text=captions, images=pred_redacted),
-                imgsim=lambda: [imgsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_redacted)],
-                dreamsim=lambda: [dreamsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_redacted)],
-            )
+            redacted_metrics.update({
+                clip: partial(clip.update, text=captions, images=pred_redacted),
+                imgsim: lambda: [imgsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_redacted)],
+                dreamsim: lambda: [dreamsim.update(img1=img1, img2=img2) for img1, img2 in zip(ref_image, pred_redacted)],
+            })
 
         for metrics, redacted in [(standard_metrics, False), (redacted_metrics, True)]:
             for metric, update in metrics.items():
                 update()
                 if redacted:
-                    scores[f"Redacted {str(metric)}"] = metric.compute() # type: ignore
+                    scores[f"Redacted {str(metric)}"] = metric.compute()
                 else:
                     scores[str(metric)] = metric.compute() # type: ignore
                 metric.reset()
