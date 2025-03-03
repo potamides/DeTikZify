@@ -3,8 +3,6 @@ from argparse import ArgumentParser
 from datetime import timedelta
 from os.path import basename, join
 
-from accelerate import Accelerator
-from datasets import Dataset
 from datasets import load_dataset
 from torch import distributed as dist
 from transformers import AutoTokenizer, set_seed
@@ -13,15 +11,7 @@ from transformers.utils.logging import enable_explicit_format, set_verbosity_inf
 from detikzify.model import load
 from detikzify.model.adapter import AdapterProcessor
 from detikzify.train.adapter import CrossAttentionSiglipVisionModel, train
-from detikzify.util import batchify, convert, expand
 
-@batchify
-def process_mlbcap(batch, size):
-    for image, description in zip(batch['image'], batch['figure_description']):
-        yield {
-            "image": convert(expand(image, size, do_trim=True), "png"),
-            "text": description
-        }
 
 def load_adapter(base_model, embedding_model, adapter_model):
     model, processor = load(base_model)
@@ -48,14 +38,14 @@ def load_adapter(base_model, embedding_model, adapter_model):
 
 def parse_args():
     argument_parser = ArgumentParser(
-        description="Fine-tune a DeTikZify adapter on MLBCAP descriptions."
+        description="Fine-tune a TikZero adapter end-to-end, optionally conditioned on captions."
     )
     argument_parser.add_argument("--base_model",
         required=True,
         help="The DeTikZify model checkpoint for weights initialization."
     )
     argument_parser.add_argument("--embedding_model",
-        required=True,
+        default="meta-llama/Llama-3.2-1B",
         help=(
             "The adapter embedding model checkpoint for weights initialization. "
             "Only LLaMA 3.1/3.2 models are officially supported."
@@ -64,6 +54,14 @@ def parse_args():
     argument_parser.add_argument("--adapter_model",
         required=True,
         help= "The adapter model checkpoint obtained from the `pretrain.py` script."
+    )
+    argument_parser.add_argument("--datikz",
+        default="nllg/datikz-v3",
+        help="Path or name of the DaTikZ dataset.",
+    )
+    argument_parser.add_argument("--caption_condition",
+        action="store_true",
+        help="whether to also condition model on captions",
     )
     argument_parser.add_argument("--output",
         required=True,
@@ -76,10 +74,6 @@ def parse_args():
         action="store_true",
         help="use gradient checkpointing",
     )
-    argument_parser.add_argument("--multimodal",
-        action="store_true",
-        help="fine-tune an adapter for multimodal inputs",
-    )
 
     return argument_parser.parse_args()
 
@@ -91,22 +85,14 @@ if __name__ == "__main__":
 
     args = parse_args()
     vision_model, processor = load_adapter(args.base_model, args.embedding_model, args.adapter_model)
-
-    with Accelerator().main_process_first():
-        mlbcap: Dataset = load_dataset("TEAMREBOOTT-AI/SciCap-MLBCAP", split="train") # type: ignore
-        mlbcap = mlbcap.map(
-            process_mlbcap,
-            remove_columns=mlbcap.column_names,
-            batched=True,
-            fn_kwargs=dict(size=vision_model.config.image_size),
-        )
+    datikz = load_dataset(args.datikz, split="train")
 
     train(
         model=vision_model,
         processor=processor,
-        dataset=mlbcap,
-        output_dir=join(args.output, basename(args.base_model)),
+        dataset=datikz.filter(lambda ex: len(ex['caption']) > 0),
+        caption_condition=args.caption_condition,
+        output_dir=join(args.output, basename(model.config.name_or_path)), # type: ignore
         gradient_checkpointing=args.gradient_checkpointing,
         deepspeed=args.deepspeed,
-        multimodal=args.multimodal,
     )
