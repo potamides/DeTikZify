@@ -67,7 +67,7 @@ def parse_args():
         help="The DeTikZify model checkpoint for weights initialization."
     )
     argument_parser.add_argument("--embedding_model",
-        required=True,
+        default="meta-llama/Llama-3.2-1B",
         help=(
             "The adapter embedding model checkpoint for weights initialization. "
             "Only LLaMA 3.1/3.2 models are officially supported."
@@ -84,9 +84,9 @@ def parse_args():
         action="store_true",
         help="use gradient checkpointing",
     )
-    argument_parser.add_argument("--multimodal",
+    argument_parser.add_argument("--mse_loss",
         action="store_true",
-        help="train an adapter for multimodal inputs",
+        help="train using mse loss instead of cosine similarity",
     )
 
     return argument_parser.parse_args()
@@ -123,5 +123,5 @@ if __name__ == "__main__":
         output_dir=join(args.output, basename(args.base_model)),
         gradient_checkpointing=args.gradient_checkpointing,
         deepspeed=args.deepspeed,
-        multimodal=args.multimodal,
+        mse_loss=args.mse_loss,
     )

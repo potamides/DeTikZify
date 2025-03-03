@@ -32,12 +32,12 @@ logger = logging.get_logger("transformers")
 WORLD_SIZE = int(os.environ.get("WORLD_SIZE", 1))
 
 class EmbeddingSimilarityLoss():
-    def __init__(self, elementwise: bool = True, cossim: bool = True):
+    def __init__(self, elementwise: bool = True, use_mse: bool = False):
         self.cosine = torch.nn.CosineSimilarity(dim=-1)
         self.mae = torch.nn.L1Loss(reduction="none")
         self.mse = torch.nn.MSELoss(reduction="none")
         self.elementwise = elementwise
-        self.cossim = cossim
+        self.use_mse = use_mse
 
     # https://github.com/pytorch/pytorch/issues/104564#issuecomment-1651575112
     @torch.compile
@@ -58,10 +58,10 @@ class EmbeddingSimilarityLoss():
             return self.mae(X, Y).max(dim=-1)[0].mean()
 
     def __call__(self, x, y):
-        if self.cossim:
-            return self.cosine_loss(x, y)
-        else:
+        if self.use_mse:
             return self.l2_loss(x, y)
+        else:
+            return self.cosine_loss(x, y)
 
 # https://huggingface.co/docs/transformers/main/en/tasks/knowledge_distillation_for_image_classification
 class AdapterTrainer(Trainer):
@@ -70,14 +70,14 @@ class AdapterTrainer(Trainer):
         model: CrossAttentionAdapterMixin,
         loss_term: Literal["avg", "pool", "patch", "layer"] = "patch",
         elementwise_loss: bool = True,
-        cossim_loss: bool = True,
+        mse_loss: bool = False,
         pool_train_head: bool = False,
         multimodal: bool = False,
         *args,
         **kwargs,
     ):
         self.term = loss_term
-        self.loss_function = EmbeddingSimilarityLoss(elementwise=elementwise_loss, cossim=cossim_loss)
+        self.loss_function = EmbeddingSimilarityLoss(elementwise=elementwise_loss, use_mse=mse_loss)
         train_head = self.term == "pool" and pool_train_head
         super().__init__(self.prepare_model(model, train_head, multimodal), *args, **kwargs) # type: ignore
 
