@@ -60,7 +60,7 @@ def init_adapter(base_model, embedding_model):
 
 def parse_args():
     argument_parser = ArgumentParser(
-        description="Pre-train a DeTikZify adapter on ArxivCap."
+        description="Pre-train a TikZero adapter on ArxivCap."
     )
     argument_parser.add_argument("--base_model",
         required=True,
