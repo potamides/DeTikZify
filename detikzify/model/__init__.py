@@ -1,5 +1,6 @@
 from datasets import DownloadManager
 from safetensors.torch import load_file
+from transformers.utils.hub import has_file
 from transformers import (
     AutoConfig,
     AutoModelForVision2Seq,
@@ -11,6 +12,7 @@ from transformers.utils.hub import is_remote_url
 from .configuration_detikzify import *
 from .modeling_detikzify import *
 from .processing_detikzify import *
+from .adapter import load as load_adapter
 
 if is_timm_available():
     from .v1 import models as v1_models, load as load_v1
@@ -52,5 +54,8 @@ def load(model_name_or_path, modality_projector=None, is_v1=False, **kwargs):
             ),
             strict=False
         )
+
+    if has_file(model_name_or_path, "adapter/model.safetensors"):
+        model, processor = load_adapter(model=model, processor=processor)
 
     return model, processor

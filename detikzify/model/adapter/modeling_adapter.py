@@ -426,7 +426,7 @@ class CrossAttentionAdapterMixin:
             model_or_model_name_or_path,
             **adapter_kwargs
         )
-        try:
+        if adapter_name_or_path is not None:
             self.adapter = CrossAttentionAdapter.from_pretrained(
                 pretrained_model_name_or_path=adapter_name_or_path,
                 input_hidden_size=self.embedding_model.config.hidden_size,
@@ -435,14 +435,13 @@ class CrossAttentionAdapterMixin:
                 torch_dtype=self.dtype,
                 **adapter_kwargs
             ).to(self.dtype)
-        except OSError:
-            name_or_path = adapter_name_or_path or basename(self.embedding_model.name_or_path)
+        else:
             self.adapter = CrossAttentionAdapter.from_pretrained(
                 pretrained_model_name_or_path=self.config.name_or_path,
                 input_hidden_size=self.embedding_model.config.hidden_size,
                 cross_attn_every_n_layers=cross_attn_every_n_layers,
                 config=getattr(self.config, "vision_config", self.config),
-                subfolder=f"adapters/{name_or_path}",
+                subfolder="adapter",
                 torch_dtype=self.dtype,
                 **adapter_kwargs
             ).to(self.dtype)
