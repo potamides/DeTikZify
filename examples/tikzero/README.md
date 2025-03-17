@@ -1,5 +1,5 @@
 # Examples
-The examples in this directory are specific to training TikZero adapters. Each
+The examples in this directory are specific to training Ti*k*Zero adapters. Each
 script has a command line interface and information about available options can
 be found by invoking them with the `--help` flag.
 

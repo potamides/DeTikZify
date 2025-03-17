@@ -18,6 +18,14 @@ its outputs without the need for additional training.
 https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3ccb65880cd3
 
 ## News
+* **2025-03-17**: We release
+  [Ti*k*Zero](https://huggingface.co/nllg/tikzero-adapter) adapters which plug
+  directly into [DeTi*k*Zify<sub>v2</sub>
+  (8b)](https://huggingface.co/nllg/detikzify-v2-8b) and enable zero-shot
+  text-conditioning, and
+  [Ti*k*Zero+](https://huggingface.co/nllg/tikzero-plus-10b) with additional
+  end-to-end fine-tuning. For more information see our
+  [paper](https://arxiv.org/abs/2503.11509) and usage examples [below](#usage).
 * **2024-12-05**: We release [DeTi*k*Zify<sub>v2</sub>
   (8b)](https://huggingface.co/nllg/detikzify-v2-8b), our latest model which
   surpasses all previous versions in our evaluation and make it the new default
@@ -34,9 +42,9 @@ https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3
 > [!TIP]
 > If you encounter difficulties with installation and inference on your own
 > hardware, consider visiting our [Hugging Face
-> Space](https://huggingface.co/spaces/nllg/DeTikZify) (restarting the space
-> might take a few minutes). Should you experience long queues, you have the
-> option to
+> Space](https://huggingface.co/spaces/nllg/DeTikZify) (please note that
+> restarting the space can take up to 30 minutes). Should you experience long
+> queues, you have the option to
 > [duplicate](https://huggingface.co/spaces/nllg/DeTikZify?duplicate=true) it
 > with a paid private GPU runtime for a more seamless experience. Additionally,
 > you can try our demo on [Google
@@ -67,8 +75,7 @@ your package manager or via other means.
 ## Usage
 
 > [!TIP]
-> For interactive use and general [usage
-> tips](https://github.com/potamides/DeTikZify/tree/main/detikzify/webui#usage-tips),
+> For interactive use and general [usage tips](detikzify/webui#usage-tips),
 > we recommend checking out our [web UI](detikzify/webui), which can be started
 > directly from the command line (use `--help` for a list of all options):
 > ```sh
@@ -78,6 +85,8 @@ your package manager or via other means.
 If all required dependencies are installed, the full range of DeTi*k*Zify
 features such as compiling, rendering, and saving Ti*k*Z graphics, and
 MCTS-based inference can be accessed through its programming interface:
+<details open><summary>DeTi<i>k</i>Zify Example</summary>
+
 ```python
 from operator import itemgetter
 
@@ -107,23 +116,83 @@ for score, fig in pipeline.simulate(image=image, timeout=600):
 best = sorted(figs, key=itemgetter(0))[-1][1]
 best.save("fig.tex")
 ```
+</details>
+
+Through [Ti*k*Zero](https://huggingface.co/nllg/tikzero-adapter) adapters and
+[Ti*k*Zero+](https://huggingface.co/nllg/tikzero-plus-10b) it is also possible
+to synthesize graphics programs conditioned on text (cf. our
+[paper](https://arxiv.org/abs/2503.11509) for
+details). Note that this currently only supported through the programming
+interface:
+
+<details open><summary>Ti<i>k</i>Zero+ Example</summary>
+
+```python
+from detikzify.model import load
+from detikzify.infer import DetikzifyPipeline
+
+caption = "A multi-layer perceptron with two hidden layers."
+pipeline = DetikzifyPipeline(*load(
+    model_name_or_path="nllg/tikzero-plus-10b",
+    device_map="auto",
+    torch_dtype="bfloat16",
+))
+
+# generate a single TikZ program
+fig = pipeline.sample(text=caption)
+
+# if it compiles, rasterize it and show it
+if fig.is_rasterizable:
+    fig.rasterize().show()
+```
+</details>
+<details><summary>Ti<i>k</i>Zero Example</summary>
+
+```python
+from detikzify.model import load, load_adapter
+from detikzify.infer import DetikzifyPipeline
+
+caption = "A multi-layer perceptron with two hidden layers."
+pipeline = DetikzifyPipeline(
+    *load_adapter(
+        *load(
+            model_name_or_path="nllg/detikzify-v2-8b",
+            device_map="auto",
+            torch_dtype="bfloat16",
+        ),
+        adapter_name_or_path="nllg/tikzero-adapter",
+    )
+)
+
+# generate a single TikZ program
+fig = pipeline.sample(text=caption)
+
+# if it compiles, rasterize it and show it
+if fig.is_rasterizable:
+    fig.rasterize().show()
+```
+</details>
 More involved examples, for example for evaluation and training, can be found
 in the [examples](examples) folder.
 
 ## Model Weights & Datasets
-We upload all our models and datasets to the [Hugging Face
-Hub](https://huggingface.co/collections/nllg/detikzify-664460c521aa7c2880095a8b).
+We upload all our DeTi*k*Zify models and datasets to the [Hugging Face
+Hub](https://huggingface.co/collections/nllg/detikzify-664460c521aa7c2880095a8b)
+(Ti*k*Zero models are available
+[here](https://huggingface.co/collections/nllg/tikzero-67d1952fab69f5bd172de1fe)).
 However, please note that for the public release of the DaTi*k*Z<sub>v2</sub>
-dataset, we had to remove a considerable portion of Ti*k*Z drawings originating
-from [arXiv](https://arxiv.org), as the [arXiv non-exclusive
+and DaTi*k*Z<sub>v3</sub> datasets, we had to remove a considerable portion of
+Ti*k*Z drawings originating from [arXiv](https://arxiv.org), as the [arXiv
+non-exclusive
 license](https://arxiv.org/licenses/nonexclusive-distrib/1.0/license.html) does
 not permit redistribution. We do, however, release our [dataset creation
 scripts](https://github.com/potamides/DaTikZ) and encourage anyone to recreate
-the full version of DaTi*k*Z<sub>v2</sub> themselves.
+the full version of DaTi*k*Z themselves.
 
 ## Citation
-If DeTi*k*Zify has been beneficial for your research or applications, we kindly
-request you to acknowledge its use by citing it as follows:
+If DeTi*k*Zify and Ti*k*Zero have been beneficial for your research or
+applications, we kindly request you to acknowledge this by citing them as
+follows:
 
 ```bibtex
 @inproceedings{belouadi2024detikzify,
@@ -132,6 +201,16 @@ request you to acknowledge its use by citing it as follows:
     booktitle={The Thirty-eighth Annual Conference on Neural Information Processing Systems},
     year={2024},
     url={https://openreview.net/forum?id=bcVLFQCOjc}
+}
+
+@misc{belouadi2025tikzero,
+    title={{TikZero}: Zero-Shot Text-Guided Graphics Program Synthesis},
+    author={Jonas Belouadi and Eddy Ilg and Margret Keuper and Hideki Tanaka and Masao Utiyama and Raj Dabre and Steffen Eger and Simone Paolo Ponzetto},
+    year={2025},
+    eprint={2503.11509},
+    archivePrefix={arXiv},
+    primaryClass={cs.CL},
+    url={https://arxiv.org/abs/2503.11509},
 }
 ```
 
@@ -142,3 +221,7 @@ The implementation of the DeTi*k*Zify model architecture is based on
 3](https://huggingface.co/HuggingFaceM4/Idefics3-8B-Llama3) (v2). Our MCTS
 implementation is based on
 [VerMCTS](https://github.com/namin/llm-verified-with-monte-carlo-tree-search).
+The Ti*k*Zero architecture draws inspiration from
+[Flamingo](https://deepmind.google/discover/blog/tackling-multiple-tasks-with-a-single-visual-language-model/)
+and [LLaMA
+3.2-Vision](https://ai.meta.com/blog/llama-3-2-connect-2024-vision-edge-mobile-devices).
