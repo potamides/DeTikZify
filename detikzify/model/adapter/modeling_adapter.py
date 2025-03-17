@@ -400,18 +400,22 @@ class CrossAttentionAdapterMixin:
         self,
         model_or_model_name_or_path,
         cross_attn_every_n_layers: Optional[int] = 1,
-        **adapter_kwargs,
+        embedding_kwargs: dict = dict(),
+        adapter_kwargs: dict = dict(),
+        **kwargs,
     ):
         self.embedding_model = self.load_embedding_model(
             model_or_model_name_or_path,
-            **adapter_kwargs
+            **embedding_kwargs,
+            **kwargs
         ).to(self.device)
         self.adapter = CrossAttentionAdapter._from_config(
             input_hidden_size=self.embedding_model.config.hidden_size,
             cross_attn_every_n_layers=cross_attn_every_n_layers,
             config=getattr(self.config, "vision_config", self.config),
             torch_dtype=self.dtype,
-            **adapter_kwargs
+            **adapter_kwargs,
+            **kwargs
         ).to(self.device, self.dtype)
         self.add_hooks()
 
@@ -420,11 +424,14 @@ class CrossAttentionAdapterMixin:
         model_or_model_name_or_path,
         adapter_name_or_path: Optional[str] = None,
         cross_attn_every_n_layers: Optional[int] = 1,
-        **adapter_kwargs,
+        embedding_kwargs: dict = dict(),
+        adapter_kwargs: dict = dict(),
+        **kwargs,
     ):
         self.embedding_model = self.load_embedding_model(
             model_or_model_name_or_path,
-            **adapter_kwargs
+            **embedding_kwargs,
+            **kwargs
         )
         if adapter_name_or_path is not None:
             self.adapter = CrossAttentionAdapter.from_pretrained(
@@ -433,7 +440,8 @@ class CrossAttentionAdapterMixin:
                 cross_attn_every_n_layers=cross_attn_every_n_layers,
                 config=getattr(self.config, "vision_config", self.config),
                 torch_dtype=self.dtype,
-                **adapter_kwargs
+                **adapter_kwargs,
+                **kwargs
             ).to(self.dtype)
         else:
             self.adapter = CrossAttentionAdapter.from_pretrained(
@@ -443,9 +451,10 @@ class CrossAttentionAdapterMixin:
                 config=getattr(self.config, "vision_config", self.config),
                 subfolder="adapter",
                 torch_dtype=self.dtype,
-                **adapter_kwargs
+                **adapter_kwargs,
+                **kwargs
             ).to(self.dtype)
-        if "device_map" not in adapter_kwargs:
+        if "device_map" not in kwargs:
             self.embedding_model = self.embedding_model.to(self.device)
             self.adapter = self.adapter.to(self.device)
         self.add_hooks()
