@@ -180,10 +180,11 @@ We upload all our DeTi*k*Zify models and datasets to the [Hugging Face
 Hub](https://huggingface.co/collections/nllg/detikzify-664460c521aa7c2880095a8b)
 (Ti*k*Zero models are available
 [here](https://huggingface.co/collections/nllg/tikzero-67d1952fab69f5bd172de1fe)).
-However, please note that for the public release of the DaTi*k*Z<sub>v2</sub>
-and DaTi*k*Z<sub>v3</sub> datasets, we had to remove a considerable portion of
-Ti*k*Z drawings originating from [arXiv](https://arxiv.org), as the [arXiv
-non-exclusive
+However, please note that for the public release of the
+[DaTi*k*Z<sub>v2</sub>](https://huggingface.co/datasets/nllg/datikz-v2)
+and [DaTi*k*Z<sub>v3</sub>](https://huggingface.co/datasets/nllg/datikz-v3)
+datasets, we had to remove a considerable portion of Ti*k*Z drawings
+originating from [arXiv](https://arxiv.org), as the [arXiv non-exclusive
 license](https://arxiv.org/licenses/nonexclusive-distrib/1.0/license.html) does
 not permit redistribution. We do, however, release our [dataset creation
 scripts](https://github.com/potamides/DaTikZ) and encourage anyone to recreate
@@ -202,7 +203,9 @@ follows:
     year={2024},
     url={https://openreview.net/forum?id=bcVLFQCOjc}
 }
+```
 
+```bibtex
 @misc{belouadi2025tikzero,
     title={{TikZero}: Zero-Shot Text-Guided Graphics Program Synthesis},
     author={Jonas Belouadi and Eddy Ilg and Margret Keuper and Hideki Tanaka and Masao Utiyama and Raj Dabre and Steffen Eger and Simone Paolo Ponzetto},
