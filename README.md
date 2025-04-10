@@ -172,6 +172,7 @@ if fig.is_rasterizable:
     fig.rasterize().show()
 ```
 </details>
+
 More involved examples, for example for evaluation and training, can be found
 in the [examples](examples) folder.
 
