@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  detikzify:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: hotwa/detikzify:latest
+    runtime: nvidia
+    volumes:
+      - ../:/app
+    working_dir: /app
+    # command: "-m detikzify.webui --share"
+    entrypoint: [""]
+    command: "tail -f /dev/null"
+    ports:
+      - "7860:7860"
+    environment:
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - NVIDIA_VISIBLE_DEVICES=all
+      - HF_ENDPOINT=https://hf-mirror.com
