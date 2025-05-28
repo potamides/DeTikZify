@@ -6,8 +6,8 @@ and [poppler](https://poppler.freedesktop.org). You can launch it by running
 `--share` flag, for example, you can create a shareable link. Checkout `--help`
 for a full list of supported options. As scientific figures usually use black
 fonts on a white background, it is best to use the web UI in light mode. This
-can be enforced by using the `--light` flag. If [FlashAttention-2](
-https://huggingface.co/docs/transformers/en/perf_infer_gpu_one?install=NVIDIA#flashattention-2)
+can be enforced by using the `--light` flag. If [FlashAttention](
+https://huggingface.co/docs/transformers/en/perf_infer_gpu_one#flashattention)
 is installed, it is picked up automatically and should boost inference speeds.
 
 ## Usage Tips
