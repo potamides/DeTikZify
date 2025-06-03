@@ -40,14 +40,15 @@ https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3
 ## Installation
 
 > [!TIP]
-> If you encounter difficulties with installation and inference on your own
+> If you encounter difficulties with installation or inference on your own
 > hardware, consider visiting our [Hugging Face
 > Space](https://huggingface.co/spaces/nllg/DeTikZify) (please note that
 > restarting the space can take up to 30 minutes). Should you experience long
 > queues, you have the option to
 > [duplicate](https://huggingface.co/spaces/nllg/DeTikZify?duplicate=true) it
-> with a paid private GPU runtime for a more seamless experience. Additionally,
-> you can try our demo on [Google
+> with a paid private GPU runtime or [run it
+> locally](https://huggingface.co/spaces/nllg/DeTikZify?docker=true) with
+> Docker. Additionally, you can try our demo on [Google
 > Colab](https://colab.research.google.com/drive/1hPWqucbPGTavNlYvOBvSNBAwdcPZKe8F).
 > However, setting up the environment there might take some time, and the free
 > tier only supports inference for the 1b models.
