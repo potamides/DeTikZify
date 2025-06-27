@@ -18,6 +18,8 @@ its outputs without the need for additional training.
 https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3ccb65880cd3
 
 ## News
+* **2025-06-26**: Our Ti*k*Zero paper has been accepted to [ICCV
+  2025](https://iccv.thecvf.com)!
 * **2025-03-17**: We release
   [Ti*k*Zero](https://huggingface.co/nllg/tikzero-adapter) adapters which plug
   directly into [DeTi*k*Zify<sub>v2</sub>
