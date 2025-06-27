@@ -218,6 +218,7 @@ class DetikzifyGenerator:
             return self.model.generate(
                 input_ids=input_ids.unsqueeze(0),
                 bad_words_ids=[[self.model.config.image_token_id]],
+                begin_suppress_tokens=[self.model.config.text_config.eos_token_id],
                 pixel_values=token_ids.get("pixel_values"),
                 streamer=streamers,
                 **adapter_kwargs,

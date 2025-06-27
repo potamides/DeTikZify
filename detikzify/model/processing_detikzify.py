@@ -86,6 +86,9 @@ class DetikzifyProcessor(ProcessorMixin):
         if images is None:
             raise ValueError("`images` are expected as arguments to a `DetikzifyProcessor` instance.")
         else:
+            if isinstance(images, list) and all(isinstance(img, list) and len(img) == 1 for img in images):
+                # compatibility with trl
+                images = [img[0] for img in images]
             images = make_list_of_images(images)
         if text is None:
             text = len(images) * [""]
