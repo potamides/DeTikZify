@@ -18,6 +18,16 @@ its outputs without the need for additional training.
 https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3ccb65880cd3
 
 ## News
+* **2024-06-30**: We release [DeTi*k*Zify<sub>v2.5</sub>
+  (8b)](https://huggingface.co/nllg/detikzify-v2.5-8b), our latest model, which
+  builds on
+  [DeTi*k*Zify<sub>v2</sub>](https://huggingface.co/nllg/detikzify-v2-8b) using
+  [reinforment learning from
+  self-feedback](https://huggingface.co/nllg/detikzify-v2.5-8b#reinforcement-learning-from-self-feedback)
+  (RLSF). We make it the new default model in our [Hugging Face
+  Space](https://huggingface.co/spaces/nllg/DeTikZify). Check out the [model
+  card](https://huggingface.co/nllg/detikzify-v2-8b-preview#model-card-for-detikzifyv2-8b)
+  for more information.
 * **2025-06-26**: Our Ti*k*Zero paper has been accepted to [ICCV
   2025](https://iccv.thecvf.com)!
 * **2025-03-17**: We release
@@ -29,10 +39,8 @@ https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3
   end-to-end fine-tuning. For more information see our
   [paper](https://arxiv.org/abs/2503.11509) and usage examples [below](#usage).
 * **2024-12-05**: We release [DeTi*k*Zify<sub>v2</sub>
-  (8b)](https://huggingface.co/nllg/detikzify-v2-8b), our latest model which
-  surpasses all previous versions in our evaluation and make it the new default
-  model in our [Hugging Face
-  Space](https://huggingface.co/spaces/nllg/DeTikZify). Check out the [model
+  (8b)](https://huggingface.co/nllg/detikzify-v2-8b), our new DeTi*k*Zify model
+  that surpasses all previous versions in our evaluation. Check out the [model
   card](https://huggingface.co/nllg/detikzify-v2-8b-preview#model-card-for-detikzifyv2-8b)
   for more information.
 * **2024-09-24**: DeTi*k*Zify was accepted at [NeurIPS
@@ -98,7 +106,7 @@ from detikzify.infer import DetikzifyPipeline
 
 image = "https://w.wiki/A7Cc"
 pipeline = DetikzifyPipeline(*load(
-    model_name_or_path="nllg/detikzify-v2-8b",
+    model_name_or_path="nllg/detikzify-v2.5-8b",
     device_map="auto",
     torch_dtype="bfloat16",
 ))
