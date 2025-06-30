@@ -24,8 +24,8 @@ BANNER = '''\
 MODELS = {
     basename(model): model
     for model in [
+        "nllg/detikzify-v2.5-8b",
         "nllg/detikzify-v2-8b",
-        #"nllg/detikzify-v2-3b", # coming soon
     ]
 }
 
