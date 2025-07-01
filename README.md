@@ -18,7 +18,7 @@ its outputs without the need for additional training.
 https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3ccb65880cd3
 
 ## News
-* **2024-06-30**: We release [DeTi*k*Zify<sub>v2.5</sub>
+* **2025-06-30**: We release [DeTi*k*Zify<sub>v2.5</sub>
   (8b)](https://huggingface.co/nllg/detikzify-v2.5-8b), our latest model, which
   builds on
   [DeTi*k*Zify<sub>v2</sub>](https://huggingface.co/nllg/detikzify-v2-8b) using
