@@ -42,7 +42,7 @@ https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3
 * **2024-12-05**: We release [DeTi*k*Zify<sub>v2</sub>
   (8b)](https://huggingface.co/nllg/detikzify-v2-8b), our new DeTi*k*Zify model
   that surpasses all previous versions in our evaluation. Check out the [model
-  card](https://huggingface.co/nllg/detikzify-v2-8b-preview#model-card-for-detikzifyv2-8b)
+  card](https://huggingface.co/nllg/detikzify-v2-8b#model-card-for-detikzifyv2-8b)
   for more information.
 * **2024-09-24**: DeTi*k*Zify was accepted at [NeurIPS
   2024](https://neurips.cc/Conferences/2024) as a [spotlight
