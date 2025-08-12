@@ -26,7 +26,7 @@ https://github.com/potamides/DeTikZify/assets/53401822/203d2853-0b5c-4a2b-9d09-3
   self-feedback](https://huggingface.co/nllg/detikzify-v2.5-8b#reinforcement-learning-from-self-feedback)
   (RLSF). We make it the new default model in our [Hugging Face
   Space](https://huggingface.co/spaces/nllg/DeTikZify). Check out the [model
-  card](https://huggingface.co/nllg/detikzify-v2-8b-preview#model-card-for-detikzifyv2-8b)
+  card](https://huggingface.co/nllg/detikzify-v2.5-8b#model-card-for-detikzifyv25-8b)
   for more information.
 * **2025-06-26**: Ti*k*Zero was accepted as a [highlight
   paper](https://iccv.thecvf.com/virtual/2025/poster/51) at [ICCV
